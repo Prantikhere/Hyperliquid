@@ -9,41 +9,41 @@ class RiskManager:
         self.max_leverage = float(os.getenv("MAX_LEVERAGE", 5.0))
         self.daily_loss = 0.0
         self.max_daily_loss_pct = 5.0
-        # Kelly parameters: win_rate and win_loss_ratio from backtest stats
+        # Kelly parameters from backtest stats
         self.kelly_win_rate = float(os.getenv("KELLY_WIN_RATE", 0.55))
         self.kelly_win_loss_ratio = float(os.getenv("KELLY_WIN_LOSS_RATIO", 2.0))
         self.kelly_fraction = float(os.getenv("KELLY_FRACTION", 0.25))
+        # Testnet hard cap: max position size in USD (HL testnet margin limit)
+        self.max_position_usd = float(os.getenv("MAX_POSITION_USD", 10.0))
 
     def calculate_kelly_fraction(self, confidence):
         """Calculate Kelly-optimal fraction of bankroll to risk.
-        Uses fractional Kelly (25%) for safety. Adjusts Kelly by confidence
-        so low-confidence trades get smaller sizing."""
+        Uses fractional Kelly (25%) for safety."""
         p = self.kelly_win_rate * (0.8 + 0.2 * confidence)
         q = 1.0 - p
         b = self.kelly_win_loss_ratio
         kelly = (b * p - q) / b if b > 0 else 0.0
         kelly = max(kelly, 0.0)
-        # Apply fractional Kelly and confidence scaling
         fraction = kelly * self.kelly_fraction * min(confidence / 0.6, 1.0)
-        return min(fraction, 0.15)  # Hard cap at 15% of bankroll
+        return min(fraction, 0.10)
 
     def calculate_position_size(self, confidence, price, leverage=5.0):
-        """Calculate position size using Kelly criterion with regime-aware scaling."""
+        """Calculate position size using Kelly criterion with testnet-aware capping."""
         if confidence < 0.4:
             return 0
 
-        # Kelly-based risk fraction
         kelly_risk = self.calculate_kelly_fraction(confidence)
-
-        # Fallback floor: ensure minimum 5% risk so positions clear $10 testnet minimum
-        # At $185 bankroll, 5% risk * 5x leverage = $46.25 position (clears $10 easily)
-        base_risk_pct = 0.05
+        base_risk_pct = 0.02
         risk_pct = max(kelly_risk, base_risk_pct)
 
         position_usd = self.bankroll * risk_pct * leverage
 
-        # Absolute hard cap at 30% of bankroll for any single trade
-        position_usd = min(position_usd, self.bankroll * 0.30)
+        # Hard cap: never exceed testnet margin limit
+        position_usd = min(position_usd, self.max_position_usd)
+
+        # Absolute floor: must clear $10 minimum
+        if position_usd < 10.0:
+            position_usd = 10.0
 
         return position_usd
 

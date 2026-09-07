@@ -172,11 +172,11 @@ class SupervisorAgent:
             det_action = "BUY"
         elif composite < sell_th and not uptrend and symbol_ok:
             det_action = "SELL"   # opens a SHORT in a downtrend -> hedge engages when trend is down
-        elif composite > 0.70 and symbol_ok and "MEAN_REVERTING" in regime.upper():
+        elif composite >= 0.70 and symbol_ok and "MEAN_REVERTING" in regime.upper():
             # Strong-signal override: composite is decisively bullish in MEAN_REVERTING regime.
             # Only fires when regime confirms mean-reversion edge — avoids "catching falling knives" in trends.
             det_action = "BUY"
-        elif composite < 0.30 and symbol_ok and "MEAN_REVERTING" in regime.upper():
+        elif composite <= 0.30 and symbol_ok and "MEAN_REVERTING" in regime.upper():
             # Strong-signal override: composite is decisively bearish in MEAN_REVERTING regime.
             det_action = "SELL"
         else:
@@ -196,7 +196,7 @@ class SupervisorAgent:
         # Only fires when the quant action is BUY/SELL (not HOLD) AND composite is strong.
         min_conf_floor = 0.40
         actionable = det_action in ("BUY", "SELL")
-        strong_signal = abs(composite - 0.5) > 0.20  # composite > 0.70 or < 0.30
+        strong_signal = abs(composite - 0.5) >= 0.20  # composite >= 0.70 or <= 0.30
         if meta_confidence < min_conf_floor and actionable and strong_signal:
             log.info(f"[{exchange_id}] Meta-learner override: {meta_confidence:.2f} -> {min_conf_floor} (composite={composite:.2f}, action={det_action})")
             meta_confidence = min_conf_floor

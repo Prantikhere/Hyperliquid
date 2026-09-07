@@ -42,9 +42,9 @@ class RiskAgent:
             # Apply regime scale factor
             position_usd = position_usd * scale_factor
 
-            # Apply Sortino risk-adjusted multiplier (0.5 to 2.0)
-            # Raised floor from 0.15 to 0.5 so testnet positions clear $10 minimum
-            sortino_multiplier = float(np.clip(sortino, 0.5, 2.0))
+            # Apply Sortino risk-adjusted multiplier (0.75 to 2.0)
+            # Floor at 0.75 to fit HL testnet margin limits while clearing $10 minimum
+            sortino_multiplier = float(np.clip(sortino, 0.75, 2.0))
             position_usd = position_usd * sortino_multiplier
 
             if position_usd <= 0:
