@@ -49,7 +49,6 @@ def calculate_trade_sortino(db, symbol, side, entry_price, entry_time):
             return 3.0
             
         sortino = mean_ret / downside_deviation
-        # Map Sortino to positive sample weight between 0.1 and 5.0
         return float(np.clip(1.0 + sortino, 0.1, 5.0))
     except Exception as e:
         log.warning(f"Sortino calc error for {symbol} at {entry_time}: {e}")
@@ -57,7 +56,7 @@ def calculate_trade_sortino(db, symbol, side, entry_price, entry_time):
 
 def train_meta_learner():
     db = DatabaseManager()
-    log.info("Starting Meta-Learner retraining with Sortino weighting...")
+    log.info("Starting Meta-Learner retraining (continuous ROI labels)...")
     
     query = """
     SELECT metadata, market_id, side, price, time FROM system_trades 
@@ -81,14 +80,14 @@ def train_meta_learner():
             'mean_reversion': q.get('mean_reversion', 0.5),
             'momentum': q.get('momentum', 0.5),
             'order_flow': q.get('order_flow', 0.5),
+            'trend': q.get('trend', 0.5),
             # legacy 'llm_signal' column is fed the QUANT action direction
             'llm_signal': (lambda a: 1.0 if a == 'BUY' else (-1.0 if a == 'SELL' else 0.0))(
                 meta.get('quant_action', meta.get('llm_action')))
         }
-        # Label: 1 if ROI > 0, else 0
+        # Continuous ROI label (NOT binary). Regressed directly.
         roi = float(meta.get('outcome', 0))
-        label = 1 if roi > 0 else 0
-        features['label'] = label
+        features['label'] = roi
         data.append(features)
         
         # Sortino-based risk adjusted sample weighting
@@ -99,19 +98,39 @@ def train_meta_learner():
     X = df.drop('label', axis=1)
     y = df['label']
 
-    # 2. Train XGBoost
-    model = xgb.XGBClassifier(
-        n_estimators=100,
-        max_depth=3,
-        learning_rate=0.1,
-        objective='binary:logistic'
+    # Train XGBoost as a REGRESSOR (continuous ROI) instead of classifier (binary win/loss).
+    # This gives the model a meaningful gradient: "how profitable will this trade be?" vs
+    # just "will it be positive?" — which is far more useful for confidence calibration.
+    model = xgb.XGBRegressor(
+        n_estimators=150,
+        max_depth=4,
+        learning_rate=0.05,
+        objective='reg:squarederror',
+        subsample=0.8,
+        colsample_bytree=0.8,
     )
     model.fit(X, y, sample_weight=np.array(sample_weights))
 
-    # 3. Save Model
+    # Save Model
     os.makedirs("models_local", exist_ok=True)
     model.save_model("models_local/meta_learner.json")
-    log.info(f"Meta-Learner retrained successfully with {len(rows)} samples under Sortino-adjusted weights.")
+    
+    # Save calibration stats for Platt scaling
+    preds = model.predict(X)
+    stats = {
+        "n_samples": len(rows),
+        "mean_roi": float(y.mean()),
+        "std_roi": float(y.std()),
+        "mean_pred": float(preds.mean()),
+        "std_pred": float(preds.std()),
+        "feature_importance": dict(zip(X.columns, model.feature_importances_.tolist())),
+    }
+    with open("models_local/meta_learner_stats.json", "w") as f:
+        json.dump(stats, f, indent=2)
+    
+    log.info(f"Meta-Learner retrained: {len(rows)} samples, "
+             f"mean_roi={y.mean()*100:.2f}%, mean_pred={preds.mean()*100:.2f}%, "
+             f"std_pred={preds.std()*100:.2f}%")
 
 if __name__ == "__main__":
     train_meta_learner()

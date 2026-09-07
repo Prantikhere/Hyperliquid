@@ -48,17 +48,23 @@ class RiskAgent:
             # Apply scaling factor
             position_usd = position_usd * scale_factor
             
-            # Apply Sortino risk-adjusted multiplier (0.5 to 1.5) — floor raised from 0.25 so
-            # low-sortino paths still produce actionable position sizes above exchange minimums.
-            sortino_multiplier = float(np.clip(sortino, 0.5, 1.5))
+            # Apply Sortino risk-adjusted multiplier (0.15 to 1.5) — low floor for testnet
+            # where sortino ratios are often depressed due to small sample sizes.
+            sortino_multiplier = float(np.clip(sortino, 0.15, 1.5))
             position_usd = position_usd * sortino_multiplier
             
             if position_usd <= 0:
                 return {"approved": False, "reason": f"Position size calculation resulted in 0 or negative (scale factor: {scale_factor:.2f}, sortino mult: {sortino_multiplier:.2f})"}
             
-            # Enforce minimum notional for HL testnet (~$10) — reject dust orders
+            # Enforce minimum notional for HL testnet — reject if below exchange minimum
+            # rather than clamping, which defeats the risk cascade.
             if position_usd < 10.0:
-                return {"approved": False, "reason": f"Position size ${position_usd:.2f} below minimum $10 notional"}
+                return {"approved": False, "reason": f"Position size ${position_usd:.2f} below $10 minimum notional (scale={scale_factor:.2f}, sortino={sortino_multiplier:.2f})"}
+            
+            # Absolute hard cap: never risk more than 15% of bankroll on a single position
+            max_position = self.risk_manager.bankroll * 0.15
+            if position_usd > max_position:
+                position_usd = max_position
             
             quantity = position_usd / current_price
             

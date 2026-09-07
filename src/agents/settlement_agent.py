@@ -84,14 +84,16 @@ class SettlementAgent:
                 is_trend = "TRENDING" in (regime or "").upper()
 
                 # Trailing profit: if ROI has been higher than current, lock in some gains.
-                # Track peak ROI per symbol in redis; if current ROI has fallen >40% from peak,
+                # Track peak ROI per symbol in redis; if current ROI has fallen >30% from peak,
                 # exit to lock in the remaining profit instead of riding back to zero.
+                # TTL extended to 4h to survive slow trade durations; peak threshold lowered to 0.5%
+                # so even small mean-reversion gains get trail-protected.
                 peak_key = f"peak_roi:{exchange_id}:{symbol}"
                 peak_roi = float(self.redis.get(peak_key) or 0)
                 if roi > peak_roi:
-                    self.redis.set(peak_key, roi, ex=3600)
+                    self.redis.set(peak_key, roi, ex=14400)  # 4h TTL
                     peak_roi = roi
-                trailing_exit = (roi > 0.01) and (peak_roi > 0.02) and (roi < peak_roi * 0.6)
+                trailing_exit = (roi > 0.005) and (peak_roi > 0.005) and (roi < peak_roi * 0.7)
 
                 reverted = (not is_trend) and (roi > REVERT_MIN_ROI) and (
                     (side == "LONG" and comp <= 0.5) or (side == "SHORT" and comp >= 0.5)

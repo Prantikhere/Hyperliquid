@@ -44,7 +44,9 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
 # (Margin is still shared, but GROSS_FRACTION=0.90 already reserves a ~10% buffer > carry's tiny
 # ~$33 1x notional, so the sizing overlap is immaterial.)
 CARRY_RESERVED = ["BTC", "ETH", "SOL"]
-UNIVERSE = ["BNB", "DOGE", "AVAX", "ARB", "OP", "NEAR", "ADA", "APT", "ATOM", "INJ"]
+# NEAR removed: testnet book too thin for shorts — all short attempts fail with
+# "Price too far from oracle" / "no resting orders", leaving the book unhedged.
+UNIVERSE = ["BNB", "DOGE", "AVAX", "ARB", "OP", "ADA", "APT", "ATOM", "INJ"]
 LOOKBACK_H = 72                 # momentum formation window (hours)
 QUANTILE = 0.30                 # long top 30% / short bottom 30%
 HYSTERESIS = 0.15               # incumbent name stays in its basket until it falls out of the

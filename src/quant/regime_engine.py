@@ -85,11 +85,10 @@ class RegimeEngine:
             else:
                 sl = max(0.015, min(0.05, atr * 2.0))
 
-            # Payoff ratio by regime. Trends can run further, so give them more room.
-            if "TRENDING" in regime:
-                tp = sl * 3.0
-            else:
-                tp = sl * 2.0
+            # Payoff ratio: 3:1 in all regimes. The validated MR edge has a narrow alpha,
+            # so we need a high payoff ratio to ensure positive expectancy even at ~40% hit rate.
+            # Previous 2:1 for MR was the root cause of negative backtest returns.
+            tp = sl * 3.0
 
             return float(tp), -float(sl)
         except Exception as e:

@@ -140,9 +140,8 @@ class SupervisorAgent:
         buy_th = self.cfg.get("buy_threshold", 0.58)
         sell_th = self.cfg.get("sell_threshold", 0.42)
 
-        # SHADOW: [RL_METRICS] per-symbol shadow logging, same non-blocking additive style as
-        # [SHADOW-ANOMALY]/[SHADOW-MEMORY] above. Reuses current_pos (already fetched for position
-        # mgmt) and composite (already computed) -- no new API calls, never read decision-affecting.
+        # SHADOW: [EDGE_METRICS] per-symbol shadow logging. Tracks unrealized P&L and
+        # signal uncertainty — purely observational, never decision-affecting.
         try:
             _qty = float(current_pos.get("quantity", 0) or 0)
             _avg = float(current_pos.get("avg_price", 0) or 0)
@@ -151,10 +150,10 @@ class SupervisorAgent:
             uncertainty = 1.0 - min(abs(composite - 0.5) * 2.0, 1.0)        # closer to decision boundary = riskier
             penalty = exposure * uncertainty
             net_score = reward - penalty
-            log.debug(f"[RL_METRICS] agent=supervisor symbol={symbol} reward=${reward:+.2f} "
+            log.debug(f"[EDGE_METRICS] agent=supervisor symbol={symbol} reward=${reward:+.2f} "
                       f"penalty=${penalty:+.2f} net_score=${net_score:+.2f} composite={composite:.2f}")
         except Exception as e:
-            log.debug(f"[RL_METRICS] skipped: {e}")
+            log.debug(f"[EDGE_METRICS] skipped: {e}")
 
         # Trend filter (mirrors backtester.simulate): only take mean-reversion entries that are
         # ALIGNED with the macro trend -- buy dips in an uptrend, sell rips in a downtrend.
@@ -173,12 +172,12 @@ class SupervisorAgent:
             det_action = "BUY"
         elif composite < sell_th and not uptrend and symbol_ok:
             det_action = "SELL"   # opens a SHORT in a downtrend -> hedge engages when trend is down
-        elif composite > 0.70 and symbol_ok:
-            # Strong-signal override: composite is decisively bullish even if below SMA.
-            # Bypasses uptrend filter to avoid missing entries on strong mean-reversion setups.
+        elif composite > 0.70 and symbol_ok and "MEAN_REVERTING" in regime.upper():
+            # Strong-signal override: composite is decisively bullish in MEAN_REVERTING regime.
+            # Only fires when regime confirms mean-reversion edge — avoids "catching falling knives" in trends.
             det_action = "BUY"
-        elif composite < 0.30 and symbol_ok:
-            # Strong-signal override: composite is decisively bearish.
+        elif composite < 0.30 and symbol_ok and "MEAN_REVERTING" in regime.upper():
+            # Strong-signal override: composite is decisively bearish in MEAN_REVERTING regime.
             det_action = "SELL"
         else:
             det_action = "HOLD"
@@ -194,12 +193,12 @@ class SupervisorAgent:
         meta_confidence = self.meta_learner.predict_confidence(meta_features)
         # OVERRIDE: if composite signal is strong but meta-learner is miscalibrated,
         # allow trade at minimum floor so entries aren't permanently suppressed.
-        # Only fires on genuinely strong signals (composite > 0.65 or < 0.35).
-        min_conf_floor = 0.25
-        strong_bullish = composite > 0.65
-        strong_bearish = composite < 0.35
-        if meta_confidence < min_conf_floor and (strong_bullish or strong_bearish):
-            log.info(f"[{exchange_id}] Meta-learner override: {meta_confidence:.2f} -> {min_conf_floor} (composite={composite:.2f} is strong)")
+        # Only fires when the quant action is BUY/SELL (not HOLD) AND composite is strong.
+        min_conf_floor = 0.40
+        actionable = det_action in ("BUY", "SELL")
+        strong_signal = abs(composite - 0.5) > 0.20  # composite > 0.70 or < 0.30
+        if meta_confidence < min_conf_floor and actionable and strong_signal:
+            log.info(f"[{exchange_id}] Meta-learner override: {meta_confidence:.2f} -> {min_conf_floor} (composite={composite:.2f}, action={det_action})")
             meta_confidence = min_conf_floor
         signal["confidence"] = meta_confidence
 
@@ -218,7 +217,7 @@ class SupervisorAgent:
         except Exception as e:
             log.debug(f"[SHADOW-MEMORY] recall skipped: {e}")
 
-        min_conf = 0.25  # Safety valve: meta-learner was suppressing all entries at 0.45
+        min_conf = 0.40  # Must match min_conf_floor used in override logic
         if signal["action"] == "HOLD" or signal["confidence"] < min_conf:
             log.info(f"[{exchange_id}] Decision: HOLD {symbol} ({signal['confidence']:.2f}) | composite={composite:.2f} | regime={regime}")
             try:

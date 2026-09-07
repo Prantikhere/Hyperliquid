@@ -32,6 +32,7 @@ models_local/*.pkl
 models_local/*.joblib
 models_local/*.xgb
 models_local/meta_learner.json
+models_local/meta_learner_stats.json
 
 # === IDE ===
 .vscode/

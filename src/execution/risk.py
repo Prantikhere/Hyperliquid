@@ -20,9 +20,10 @@ class RiskManager:
         if confidence < 0.4:
             return 0
             
-        # Target Risk Amount (e.g., $100 * 0.01 = $1 risk)
-        # We use a sliding scale between 1% and 2% based on confidence (0.4 to 1.0)
-        risk_pct = 0.01 + (self.max_risk_per_trade_pct - 0.01) * ((confidence - 0.4) / 0.6)
+        # Target Risk Amount: sliding scale between 2% and 3% based on confidence (0.4 to 1.0).
+        # Base floor raised to 2% so positions clear HL's $10 minimum even after regime/sortino scaling.
+        base_risk_pct = 0.02
+        risk_pct = base_risk_pct + (self.max_risk_per_trade_pct - base_risk_pct) * ((confidence - 0.4) / 0.6)
         risk_amount = self.bankroll * risk_pct
         
         # Position Size = Risk Amount / Stop Loss Percentage (assuming 2% stop loss for crypto)

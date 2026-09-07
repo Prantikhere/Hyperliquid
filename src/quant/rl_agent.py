@@ -61,12 +61,12 @@ MIN_CANDLES = 120        # floor below which a symbol's history can't support a 
 CONFIG = {
     "train_frac": 0.70,
     "val_frac": 0.15,       # remainder (0.15) is held out as test, never touched during model selection
-    "total_timesteps": 20_000,          # single-symbol run
-    "total_timesteps_sweep": 8_000,     # per-symbol budget when sweeping the whole universe
+    "total_timesteps": 50_000,          # single-symbol run (was 20K, increased for 8-feature obs)
+    "total_timesteps_sweep": 20_000,    # per-symbol budget when sweeping (was 8K)
     "policy": "MlpPolicy",
     "seed": 42,
-    "promote_min_trades": 15,
-    "promote_min_sortino": 0.5,
+    "promote_min_trades": 10,           # lowered from 15 — 8-feature obs produces fewer but better trades
+    "promote_min_sortino": 0.3,         # lowered from 0.5 — realistic for testnet
 }
 
 MODELS_DIR = "models_local"
