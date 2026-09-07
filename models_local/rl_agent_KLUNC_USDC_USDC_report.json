@@ -1,0 +1,10 @@
+{
+  "symbol": "KLUNC/USDC:USDC",
+  "n_candles": 297,
+  "val": {
+    "sortino": 2.058714848231316,
+    "total_roi": 0.019926075752127792,
+    "n_trades": 1
+  },
+  "promoted": false
+}

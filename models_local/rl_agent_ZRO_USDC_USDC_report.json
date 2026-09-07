@@ -1,0 +1,10 @@
+{
+  "symbol": "ZRO/USDC:USDC",
+  "n_candles": 296,
+  "val": {
+    "sortino": -12.006600159581494,
+    "total_roi": -0.06076718308897211,
+    "n_trades": 1
+  },
+  "promoted": false
+}

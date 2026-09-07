@@ -1,0 +1,10 @@
+{
+  "symbol": "DASH/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": 88.03770390921925,
+    "total_roi": 0.016859753920072773,
+    "n_trades": 1
+  },
+  "promoted": false
+}

@@ -1,0 +1,10 @@
+{
+  "symbol": "RSR/USDC:USDC",
+  "n_candles": 288,
+  "val": {
+    "sortino": -5.302995858296199,
+    "total_roi": -0.011341002371832776,
+    "n_trades": 42
+  },
+  "promoted": false
+}

@@ -1,0 +1,372 @@
+{
+  "method": "delta-neutral cash-and-carry, threshold-gated, walk-forward OOS",
+  "fee_round_trip_pct": 0.2,
+  "n_folds": 5,
+  "folds": [
+    {
+      "fold": 0,
+      "train": [
+        0,
+        800
+      ],
+      "test": [
+        800,
+        1100
+      ],
+      "entry_ann": 0.2,
+      "exit_ann": 0.08,
+      "train_sharpe": 3.299
+    },
+    {
+      "fold": 1,
+      "train": [
+        300,
+        1100
+      ],
+      "test": [
+        1100,
+        1400
+      ],
+      "entry_ann": 0.2,
+      "exit_ann": 0.08,
+      "train_sharpe": 1.791
+    },
+    {
+      "fold": 2,
+      "train": [
+        600,
+        1400
+      ],
+      "test": [
+        1400,
+        1700
+      ],
+      "entry_ann": 0.15,
+      "exit_ann": 0.05,
+      "train_sharpe": 1.249
+    },
+    {
+      "fold": 3,
+      "train": [
+        900,
+        1700
+      ],
+      "test": [
+        1700,
+        2000
+      ],
+      "entry_ann": 0.15,
+      "exit_ann": 0.05,
+      "train_sharpe": 2.054
+    },
+    {
+      "fold": 4,
+      "train": [
+        1200,
+        2000
+      ],
+      "test": [
+        2000,
+        2300
+      ],
+      "entry_ann": 0.15,
+      "exit_ann": 0.05,
+      "train_sharpe": 0.086
+    }
+  ],
+  "oos_avg_return_pct": 2.63,
+  "oos_avg_sharpe": 2.178,
+  "oos_avg_ann_pct": 1.9,
+  "oos_total_episodes": 107,
+  "carry_profitable_symbols": [
+    "BTC/USDT",
+    "ETH/USDT",
+    "SOL/USDT",
+    "DOGE/USDT",
+    "AVAX/USDT",
+    "ADA/USDT",
+    "SUI/USDT",
+    "APT/USDT",
+    "ARB/USDT",
+    "OP/USDT",
+    "ATOM/USDT",
+    "NEAR/USDT",
+    "TIA/USDT",
+    "INJ/USDT",
+    "LDO/USDT",
+    "AAVE/USDT",
+    "DYDX/USDT",
+    "ETC/USDT",
+    "FIL/USDT",
+    "MKR/USDT",
+    "WLD/USDT",
+    "ONDO/USDT",
+    "PENDLE/USDT",
+    "XLM/USDT",
+    "HBAR/USDT"
+  ],
+  "carry_live_safe": true,
+  "per_symbol_oos": {
+    "BTC/USDT": {
+      "episodes": 2,
+      "return_pct": 2.45,
+      "sharpe": 3.139,
+      "win_rate": 100.0,
+      "ann_pct": 1.8,
+      "alwaysin_return_pct": 4.75,
+      "edge_vs_alwaysin": -2.3
+    },
+    "ETH/USDT": {
+      "episodes": 3,
+      "return_pct": 3.63,
+      "sharpe": 2.704,
+      "win_rate": 100.0,
+      "ann_pct": 2.6,
+      "alwaysin_return_pct": 5.92,
+      "edge_vs_alwaysin": -2.29
+    },
+    "SOL/USDT": {
+      "episodes": 3,
+      "return_pct": 2.97,
+      "sharpe": 3.248,
+      "win_rate": 100.0,
+      "ann_pct": 2.2,
+      "alwaysin_return_pct": 2.39,
+      "edge_vs_alwaysin": 0.58
+    },
+    "BNB/USDT": {
+      "episodes": 15,
+      "return_pct": -0.38,
+      "sharpe": -0.292,
+      "win_rate": 20.0,
+      "ann_pct": -0.3,
+      "alwaysin_return_pct": -8.18,
+      "edge_vs_alwaysin": 7.8
+    },
+    "DOGE/USDT": {
+      "episodes": 3,
+      "return_pct": 3.2,
+      "sharpe": 2.801,
+      "win_rate": 100.0,
+      "ann_pct": 2.3,
+      "alwaysin_return_pct": 5.35,
+      "edge_vs_alwaysin": -2.15
+    },
+    "AVAX/USDT": {
+      "episodes": 3,
+      "return_pct": 2.66,
+      "sharpe": 3.152,
+      "win_rate": 100.0,
+      "ann_pct": 1.9,
+      "alwaysin_return_pct": -0.5,
+      "edge_vs_alwaysin": 3.16
+    },
+    "ADA/USDT": {
+      "episodes": 3,
+      "return_pct": 3.29,
+      "sharpe": 2.16,
+      "win_rate": 100.0,
+      "ann_pct": 2.4,
+      "alwaysin_return_pct": 4.82,
+      "edge_vs_alwaysin": -1.53
+    },
+    "SUI/USDT": {
+      "episodes": 4,
+      "return_pct": 2.48,
+      "sharpe": 2.208,
+      "win_rate": 75.0,
+      "ann_pct": 1.8,
+      "alwaysin_return_pct": -0.7,
+      "edge_vs_alwaysin": 3.18
+    },
+    "APT/USDT": {
+      "episodes": 4,
+      "return_pct": 4.19,
+      "sharpe": 2.05,
+      "win_rate": 75.0,
+      "ann_pct": 3.1,
+      "alwaysin_return_pct": 3.65,
+      "edge_vs_alwaysin": 0.54
+    },
+    "ARB/USDT": {
+      "episodes": 3,
+      "return_pct": 4.13,
+      "sharpe": 2.926,
+      "win_rate": 100.0,
+      "ann_pct": 3.0,
+      "alwaysin_return_pct": 6.74,
+      "edge_vs_alwaysin": -2.61
+    },
+    "OP/USDT": {
+      "episodes": 4,
+      "return_pct": 3.93,
+      "sharpe": 2.261,
+      "win_rate": 75.0,
+      "ann_pct": 2.9,
+      "alwaysin_return_pct": 6.37,
+      "edge_vs_alwaysin": -2.44
+    },
+    "ATOM/USDT": {
+      "episodes": 3,
+      "return_pct": 0.89,
+      "sharpe": 1.4,
+      "win_rate": 66.7,
+      "ann_pct": 0.6,
+      "alwaysin_return_pct": -5.16,
+      "edge_vs_alwaysin": 6.05
+    },
+    "NEAR/USDT": {
+      "episodes": 3,
+      "return_pct": 2.57,
+      "sharpe": 3.333,
+      "win_rate": 100.0,
+      "ann_pct": 1.9,
+      "alwaysin_return_pct": 2.82,
+      "edge_vs_alwaysin": -0.25
+    },
+    "TIA/USDT": {
+      "episodes": 10,
+      "return_pct": 0.87,
+      "sharpe": 0.676,
+      "win_rate": 30.0,
+      "ann_pct": 0.6,
+      "alwaysin_return_pct": -18.41,
+      "edge_vs_alwaysin": 19.28
+    },
+    "INJ/USDT": {
+      "episodes": 3,
+      "return_pct": 2.8,
+      "sharpe": 3.428,
+      "win_rate": 100.0,
+      "ann_pct": 2.0,
+      "alwaysin_return_pct": 2.67,
+      "edge_vs_alwaysin": 0.13
+    },
+    "LDO/USDT": {
+      "episodes": 3,
+      "return_pct": 4.8,
+      "sharpe": 5.172,
+      "win_rate": 100.0,
+      "ann_pct": 3.5,
+      "alwaysin_return_pct": 8.91,
+      "edge_vs_alwaysin": -4.11
+    },
+    "AAVE/USDT": {
+      "episodes": 2,
+      "return_pct": 2.23,
+      "sharpe": 2.735,
+      "win_rate": 100.0,
+      "ann_pct": 1.6,
+      "alwaysin_return_pct": 4.66,
+      "edge_vs_alwaysin": -2.43
+    },
+    "DYDX/USDT": {
+      "episodes": 3,
+      "return_pct": 3.89,
+      "sharpe": 3.075,
+      "win_rate": 100.0,
+      "ann_pct": 2.8,
+      "alwaysin_return_pct": 8.2,
+      "edge_vs_alwaysin": -4.31
+    },
+    "ETC/USDT": {
+      "episodes": 3,
+      "return_pct": 3.38,
+      "sharpe": 2.559,
+      "win_rate": 100.0,
+      "ann_pct": 2.5,
+      "alwaysin_return_pct": 6.41,
+      "edge_vs_alwaysin": -3.03
+    },
+    "FIL/USDT": {
+      "episodes": 3,
+      "return_pct": 3.46,
+      "sharpe": 2.936,
+      "win_rate": 100.0,
+      "ann_pct": 2.5,
+      "alwaysin_return_pct": 6.91,
+      "edge_vs_alwaysin": -3.45
+    },
+    "MKR/USDT": {
+      "episodes": 3,
+      "return_pct": 5.57,
+      "sharpe": 2.575,
+      "win_rate": 100.0,
+      "ann_pct": 4.1,
+      "alwaysin_return_pct": 8.24,
+      "edge_vs_alwaysin": -2.67
+    },
+    "RENDER/USDT": {
+      "episodes": 1,
+      "return_pct": 0.2,
+      "sharpe": 0.0,
+      "win_rate": 100.0,
+      "ann_pct": 0.1,
+      "alwaysin_return_pct": -1.24,
+      "edge_vs_alwaysin": 1.44
+    },
+    "WLD/USDT": {
+      "episodes": 4,
+      "return_pct": 2.4,
+      "sharpe": 1.396,
+      "win_rate": 50.0,
+      "ann_pct": 1.8,
+      "alwaysin_return_pct": 1.92,
+      "edge_vs_alwaysin": 0.48
+    },
+    "TON/USDT": {
+      "episodes": 1,
+      "return_pct": 1.9,
+      "sharpe": 0.0,
+      "win_rate": 100.0,
+      "ann_pct": 1.4,
+      "alwaysin_return_pct": -2.3,
+      "edge_vs_alwaysin": 4.2
+    },
+    "POL/USDT": {
+      "episodes": 0,
+      "return_pct": 0.0,
+      "sharpe": 0.0,
+      "win_rate": 0.0,
+      "ann_pct": 0.0,
+      "alwaysin_return_pct": -4.45,
+      "edge_vs_alwaysin": 4.45
+    },
+    "ONDO/USDT": {
+      "episodes": 8,
+      "return_pct": 1.47,
+      "sharpe": 0.747,
+      "win_rate": 25.0,
+      "ann_pct": 1.1,
+      "alwaysin_return_pct": -15.27,
+      "edge_vs_alwaysin": 16.74
+    },
+    "PENDLE/USDT": {
+      "episodes": 3,
+      "return_pct": 3.12,
+      "sharpe": 2.439,
+      "win_rate": 100.0,
+      "ann_pct": 2.3,
+      "alwaysin_return_pct": 4.65,
+      "edge_vs_alwaysin": -1.53
+    },
+    "XLM/USDT": {
+      "episodes": 3,
+      "return_pct": 2.28,
+      "sharpe": 2.226,
+      "win_rate": 66.7,
+      "ann_pct": 1.7,
+      "alwaysin_return_pct": -1.41,
+      "edge_vs_alwaysin": 3.69
+    },
+    "HBAR/USDT": {
+      "episodes": 4,
+      "return_pct": 1.98,
+      "sharpe": 2.106,
+      "win_rate": 75.0,
+      "ann_pct": 1.4,
+      "alwaysin_return_pct": 2.59,
+      "edge_vs_alwaysin": -0.61
+    }
+  }
+}

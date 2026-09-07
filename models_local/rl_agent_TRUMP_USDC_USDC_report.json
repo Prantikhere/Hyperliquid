@@ -1,0 +1,10 @@
+{
+  "symbol": "TRUMP/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": -9.9436990975702,
+    "total_roi": -0.04728250221103447,
+    "n_trades": 1
+  },
+  "promoted": false
+}

@@ -1,0 +1,10 @@
+{
+  "symbol": "MEGA/USDC:USDC",
+  "n_candles": 298,
+  "val": {
+    "sortino": -3.0987091809260154,
+    "total_roi": -0.07741627772896997,
+    "n_trades": 1
+  },
+  "promoted": false
+}

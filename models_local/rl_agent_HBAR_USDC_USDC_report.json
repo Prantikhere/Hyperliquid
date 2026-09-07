@@ -1,0 +1,10 @@
+{
+  "symbol": "HBAR/USDC:USDC",
+  "n_candles": 290,
+  "val": {
+    "sortino": 7.8560872370625825,
+    "total_roi": 0.013130424749512537,
+    "n_trades": 1
+  },
+  "promoted": false
+}

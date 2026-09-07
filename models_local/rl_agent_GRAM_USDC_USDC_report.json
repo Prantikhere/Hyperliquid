@@ -1,0 +1,10 @@
+{
+  "symbol": "GRAM/USDC:USDC",
+  "n_candles": 291,
+  "val": {
+    "sortino": -5.626548242553214,
+    "total_roi": -0.02110280126849895,
+    "n_trades": 1
+  },
+  "promoted": false
+}

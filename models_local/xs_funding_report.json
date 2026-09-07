@@ -1,0 +1,105 @@
+{
+  "method": "cross-sectional funding factor, dollar-neutral perp long-short, walk-forward OOS",
+  "universe_size": 29,
+  "intervals": 3285,
+  "n_folds": 8,
+  "oos": {
+    "n": 992,
+    "sharpe": 0.286,
+    "ann_return_pct": 3.3,
+    "monthly_pct": 0.27,
+    "max_dd_pct": -19.1,
+    "win_rate": 49.9
+  },
+  "median_hold_intervals": 3,
+  "folds": [
+    {
+      "fold": 0,
+      "chosen": {
+        "quantile": 0.4,
+        "hold": 1
+      },
+      "train_sharpe": 0.78,
+      "test_sharpe": -0.541,
+      "test_ann_pct": -7.9,
+      "test_n": 299
+    },
+    {
+      "fold": 1,
+      "chosen": {
+        "quantile": 0.2,
+        "hold": 3
+      },
+      "train_sharpe": 1.408,
+      "test_sharpe": 2.545,
+      "test_ann_pct": 67.9,
+      "test_n": 99
+    },
+    {
+      "fold": 2,
+      "chosen": {
+        "quantile": 0.2,
+        "hold": 3
+      },
+      "train_sharpe": 2.773,
+      "test_sharpe": 1.489,
+      "test_ann_pct": 36.7,
+      "test_n": 99
+    },
+    {
+      "fold": 3,
+      "chosen": {
+        "quantile": 0.2,
+        "hold": 3
+      },
+      "train_sharpe": 2.277,
+      "test_sharpe": 1.531,
+      "test_ann_pct": 32.9,
+      "test_n": 99
+    },
+    {
+      "fold": 4,
+      "chosen": {
+        "quantile": 0.2,
+        "hold": 3
+      },
+      "train_sharpe": 2.091,
+      "test_sharpe": -2.728,
+      "test_ann_pct": -39.0,
+      "test_n": 99
+    },
+    {
+      "fold": 5,
+      "chosen": {
+        "quantile": 0.3,
+        "hold": 3
+      },
+      "train_sharpe": 0.924,
+      "test_sharpe": 1.78,
+      "test_ann_pct": 31.2,
+      "test_n": 99
+    },
+    {
+      "fold": 6,
+      "chosen": {
+        "quantile": 0.4,
+        "hold": 3
+      },
+      "train_sharpe": 1.679,
+      "test_sharpe": 0.317,
+      "test_ann_pct": 2.5,
+      "test_n": 99
+    },
+    {
+      "fold": 7,
+      "chosen": {
+        "quantile": 0.4,
+        "hold": 3
+      },
+      "train_sharpe": 1.949,
+      "test_sharpe": -3.435,
+      "test_ann_pct": -39.9,
+      "test_n": 99
+    }
+  ]
+}

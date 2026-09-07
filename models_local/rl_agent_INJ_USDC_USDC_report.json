@@ -1,0 +1,10 @@
+{
+  "symbol": "INJ/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": -10.380493327809514,
+    "total_roi": -0.0405984778753109,
+    "n_trades": 1
+  },
+  "promoted": false
+}

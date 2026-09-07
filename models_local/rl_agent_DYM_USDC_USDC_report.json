@@ -1,0 +1,10 @@
+{
+  "symbol": "DYM/USDC:USDC",
+  "n_candles": 298,
+  "val": {
+    "sortino": -3.1041279927334045,
+    "total_roi": -0.059606644518272245,
+    "n_trades": 1
+  },
+  "promoted": false
+}

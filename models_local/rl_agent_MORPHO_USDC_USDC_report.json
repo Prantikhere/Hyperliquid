@@ -1,0 +1,10 @@
+{
+  "symbol": "MORPHO/USDC:USDC",
+  "n_candles": 299,
+  "val": {
+    "sortino": 4.823145577164751,
+    "total_roi": 0.009959354936555309,
+    "n_trades": 1
+  },
+  "promoted": false
+}

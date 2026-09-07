@@ -1,0 +1,10 @@
+{
+  "symbol": "CAKE/USDC:USDC",
+  "n_candles": 293,
+  "val": {
+    "sortino": 10.496018473610464,
+    "total_roi": 0.01902041791860154,
+    "n_trades": 1
+  },
+  "promoted": false
+}

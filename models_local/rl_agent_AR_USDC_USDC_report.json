@@ -1,0 +1,10 @@
+{
+  "symbol": "AR/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": -3.3290266151017383,
+    "total_roi": -0.008665849673202608,
+    "n_trades": 1
+  },
+  "promoted": false
+}

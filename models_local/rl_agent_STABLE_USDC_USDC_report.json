@@ -1,0 +1,10 @@
+{
+  "symbol": "STABLE/USDC:USDC",
+  "n_candles": 297,
+  "val": {
+    "sortino": 15.380181187224515,
+    "total_roi": 0.02922697480290637,
+    "n_trades": 1
+  },
+  "promoted": false
+}

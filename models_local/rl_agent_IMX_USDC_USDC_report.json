@@ -1,0 +1,10 @@
+{
+  "symbol": "IMX/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": 1.4436122449562063,
+    "total_roi": 0.008168533742885842,
+    "n_trades": 1
+  },
+  "promoted": false
+}

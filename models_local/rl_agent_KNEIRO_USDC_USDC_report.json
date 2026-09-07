@@ -1,0 +1,10 @@
+{
+  "symbol": "KNEIRO/USDC:USDC",
+  "n_candles": 296,
+  "val": {
+    "sortino": -1.5577247890899644,
+    "total_roi": -0.010424326763953662,
+    "n_trades": 1
+  },
+  "promoted": false
+}

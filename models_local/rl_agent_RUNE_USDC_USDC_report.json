@@ -1,0 +1,10 @@
+{
+  "symbol": "RUNE/USDC:USDC",
+  "n_candles": 298,
+  "val": {
+    "sortino": 0.6690333191325408,
+    "total_roi": 0.0013525973100136923,
+    "n_trades": 1
+  },
+  "promoted": false
+}

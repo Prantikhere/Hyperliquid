@@ -1,0 +1,10 @@
+{
+  "symbol": "BSV/USDC:USDC",
+  "n_candles": 298,
+  "val": {
+    "sortino": -5.443213751450506,
+    "total_roi": -0.02521383457636217,
+    "n_trades": 1
+  },
+  "promoted": false
+}

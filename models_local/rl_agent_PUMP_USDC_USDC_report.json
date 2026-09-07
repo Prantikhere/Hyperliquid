@@ -1,0 +1,10 @@
+{
+  "symbol": "PUMP/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": 12.142974446471998,
+    "total_roi": 0.05902904411764709,
+    "n_trades": 1
+  },
+  "promoted": false
+}

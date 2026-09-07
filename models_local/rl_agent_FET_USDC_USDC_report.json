@@ -1,0 +1,10 @@
+{
+  "symbol": "FET/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": -9.358846682159149,
+    "total_roi": -0.022257618976129656,
+    "n_trades": 1
+  },
+  "promoted": false
+}

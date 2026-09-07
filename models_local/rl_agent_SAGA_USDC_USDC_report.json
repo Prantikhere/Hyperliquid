@@ -1,0 +1,10 @@
+{
+  "symbol": "SAGA/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": -93.33027303592202,
+    "total_roi": -0.042577861403396366,
+    "n_trades": 44
+  },
+  "promoted": false
+}

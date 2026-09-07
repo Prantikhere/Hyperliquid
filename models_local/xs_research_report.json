@@ -1,0 +1,185 @@
+{
+  "method": "cross-sectional dollar-neutral long-short, walk-forward OOS",
+  "universe_size": 29,
+  "common_days": 1400,
+  "n_folds": 8,
+  "oos": {
+    "n": 160,
+    "sharpe": 0.145,
+    "ann_return_pct": 0.9,
+    "monthly_pct": 0.08,
+    "max_dd_pct": -37.7,
+    "win_rate": 48.8
+  },
+  "median_hold_days": 7,
+  "folds": [
+    {
+      "fold": 0,
+      "train": [
+        0,
+        365
+      ],
+      "test": [
+        365,
+        485
+      ],
+      "chosen": {
+        "mode": "MOM",
+        "lookback": 30,
+        "hold": 7,
+        "quantile": 0.3
+      },
+      "train_sharpe": 1.665,
+      "test_sharpe": 2.424,
+      "test_ann_pct": 82.0,
+      "test_n": 17
+    },
+    {
+      "fold": 1,
+      "train": [
+        120,
+        485
+      ],
+      "test": [
+        485,
+        605
+      ],
+      "chosen": {
+        "mode": "MOM",
+        "lookback": 30,
+        "hold": 7,
+        "quantile": 0.3
+      },
+      "train_sharpe": 2.572,
+      "test_sharpe": 0.054,
+      "test_ann_pct": -1.2,
+      "test_n": 17
+    },
+    {
+      "fold": 2,
+      "train": [
+        240,
+        605
+      ],
+      "test": [
+        605,
+        725
+      ],
+      "chosen": {
+        "mode": "MOM",
+        "lookback": 90,
+        "hold": 14,
+        "quantile": 0.2
+      },
+      "train_sharpe": 1.438,
+      "test_sharpe": 2.161,
+      "test_ann_pct": 63.3,
+      "test_n": 8
+    },
+    {
+      "fold": 3,
+      "train": [
+        360,
+        725
+      ],
+      "test": [
+        725,
+        845
+      ],
+      "chosen": {
+        "mode": "MOM",
+        "lookback": 90,
+        "hold": 7,
+        "quantile": 0.3
+      },
+      "train_sharpe": 1.624,
+      "test_sharpe": 1.31,
+      "test_ann_pct": 29.8,
+      "test_n": 17
+    },
+    {
+      "fold": 4,
+      "train": [
+        480,
+        845
+      ],
+      "test": [
+        845,
+        965
+      ],
+      "chosen": {
+        "mode": "MOM",
+        "lookback": 30,
+        "hold": 7,
+        "quantile": 0.2
+      },
+      "train_sharpe": 1.815,
+      "test_sharpe": -0.96,
+      "test_ann_pct": -14.6,
+      "test_n": 17
+    },
+    {
+      "fold": 5,
+      "train": [
+        600,
+        965
+      ],
+      "test": [
+        965,
+        1085
+      ],
+      "chosen": {
+        "mode": "MOM",
+        "lookback": 60,
+        "hold": 7,
+        "quantile": 0.2
+      },
+      "train_sharpe": 1.218,
+      "test_sharpe": -0.384,
+      "test_ann_pct": -8.8,
+      "test_n": 17
+    },
+    {
+      "fold": 6,
+      "train": [
+        720,
+        1085
+      ],
+      "test": [
+        1085,
+        1205
+      ],
+      "chosen": {
+        "mode": "MOM",
+        "lookback": 90,
+        "hold": 14,
+        "quantile": 0.2
+      },
+      "train_sharpe": 2.403,
+      "test_sharpe": -1.626,
+      "test_ann_pct": -22.2,
+      "test_n": 8
+    },
+    {
+      "fold": 7,
+      "train": [
+        840,
+        1205
+      ],
+      "test": [
+        1205,
+        1325
+      ],
+      "chosen": {
+        "mode": "REV",
+        "lookback": 3,
+        "hold": 2,
+        "quantile": 0.2
+      },
+      "train_sharpe": 1.235,
+      "test_sharpe": -3.456,
+      "test_ann_pct": -52.4,
+      "test_n": 59
+    }
+  ]
+}

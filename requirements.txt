@@ -1,0 +1,10 @@
+redis
+langgraph
+langchain
+langchain-openai
+psycopg2-binary
+requests
+websockets
+python-dotenv
+pandas
+numpy

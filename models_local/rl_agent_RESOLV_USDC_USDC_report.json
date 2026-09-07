@@ -1,0 +1,10 @@
+{
+  "symbol": "RESOLV/USDC:USDC",
+  "n_candles": 281,
+  "val": {
+    "sortino": -2.282801747667823,
+    "total_roi": -0.0004999999999999449,
+    "n_trades": 1
+  },
+  "promoted": false
+}

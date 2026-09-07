@@ -1,0 +1,10 @@
+{
+  "symbol": "WLFI/USDC:USDC",
+  "n_candles": 298,
+  "val": {
+    "sortino": -1.1835139316943537,
+    "total_roi": -0.002774485709083785,
+    "n_trades": 1
+  },
+  "promoted": false
+}

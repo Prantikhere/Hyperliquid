@@ -1,0 +1,10 @@
+{
+  "symbol": "ARB/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": 14.52718657657213,
+    "total_roi": 0.03623038152354252,
+    "n_trades": 1
+  },
+  "promoted": false
+}

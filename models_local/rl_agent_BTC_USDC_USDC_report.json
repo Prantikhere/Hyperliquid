@@ -1,0 +1,10 @@
+{
+  "symbol": "BTC/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": -0.7482610317056843,
+    "total_roi": -0.0010329830614806967,
+    "n_trades": 1
+  },
+  "promoted": false
+}

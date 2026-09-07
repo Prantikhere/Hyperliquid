@@ -1,0 +1,10 @@
+{
+  "symbol": "MEME/USDC:USDC",
+  "n_candles": 239,
+  "val": {
+    "sortino": 2.7281209541426716,
+    "total_roi": 0.02833173076923101,
+    "n_trades": 1
+  },
+  "promoted": false
+}

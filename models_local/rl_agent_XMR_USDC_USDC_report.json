@@ -1,0 +1,10 @@
+{
+  "symbol": "XMR/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": -10.383457902916124,
+    "total_roi": -0.04094804537431207,
+    "n_trades": 1
+  },
+  "promoted": false
+}

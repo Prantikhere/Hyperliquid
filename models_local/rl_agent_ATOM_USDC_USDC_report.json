@@ -1,0 +1,10 @@
+{
+  "symbol": "ATOM/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": 21.464284830765415,
+    "total_roi": 0.051344633958026575,
+    "n_trades": 1
+  },
+  "promoted": false
+}

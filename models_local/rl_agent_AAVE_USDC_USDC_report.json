@@ -1,0 +1,10 @@
+{
+  "symbol": "AAVE/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": -3.2883622903156837,
+    "total_roi": -0.008811252832184757,
+    "n_trades": 1
+  },
+  "promoted": false
+}

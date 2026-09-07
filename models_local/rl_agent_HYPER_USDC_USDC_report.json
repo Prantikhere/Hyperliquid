@@ -1,0 +1,10 @@
+{
+  "symbol": "HYPER/USDC:USDC",
+  "n_candles": 291,
+  "val": {
+    "sortino": 1.5225919097168588,
+    "total_roi": 0.016018325347576745,
+    "n_trades": 1
+  },
+  "promoted": false
+}

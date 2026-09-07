@@ -1,0 +1,10 @@
+{
+  "symbol": "SUPER/USDC:USDC",
+  "n_candles": 299,
+  "val": {
+    "sortino": -3.5381071747383612,
+    "total_roi": -0.03497731551741867,
+    "n_trades": 1
+  },
+  "promoted": false
+}

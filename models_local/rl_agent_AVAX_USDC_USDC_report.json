@@ -1,0 +1,10 @@
+{
+  "symbol": "AVAX/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": -14.384433175851116,
+    "total_roi": -0.04627346580570357,
+    "n_trades": 1
+  },
+  "promoted": false
+}

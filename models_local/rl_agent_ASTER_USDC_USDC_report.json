@@ -1,0 +1,10 @@
+{
+  "symbol": "ASTER/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": 8.226102781045848,
+    "total_roi": 0.008872026135097855,
+    "n_trades": 1
+  },
+  "promoted": false
+}

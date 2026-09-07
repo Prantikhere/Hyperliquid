@@ -1,0 +1,10 @@
+{
+  "symbol": "GRIFFAIN/USDC:USDC",
+  "n_candles": 299,
+  "val": {
+    "sortino": 68.64757548348068,
+    "total_roi": 0.015825931485078826,
+    "n_trades": 1
+  },
+  "promoted": false
+}

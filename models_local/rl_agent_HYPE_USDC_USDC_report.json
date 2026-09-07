@@ -1,0 +1,10 @@
+{
+  "symbol": "HYPE/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": 6.73512766980938,
+    "total_roi": 0.10864833508127902,
+    "n_trades": 1
+  },
+  "promoted": false
+}

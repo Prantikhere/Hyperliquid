@@ -1,0 +1,36 @@
+{
+  "universe": [
+    "BNB",
+    "DOGE",
+    "AVAX",
+    "ARB",
+    "OP",
+    "NEAR",
+    "ADA",
+    "APT",
+    "ATOM",
+    "INJ"
+  ],
+  "candles_per_symbol": 1000,
+  "baseline_vol_dd_scale_only": {
+    "cycles": 231,
+    "total_return_pct": 3.18,
+    "sharpe": 0.582,
+    "sortino": 0.639,
+    "win_rate_pct": 50.2,
+    "max_dd_pct": -4.89,
+    "avg_cycle_return_pct": 0.0142
+  },
+  "with_kelly_overlay": {
+    "cycles": 231,
+    "total_return_pct": -3.14,
+    "sharpe": -1.763,
+    "sortino": -1.177,
+    "win_rate_pct": 29.9,
+    "max_dd_pct": -3.28,
+    "avg_cycle_return_pct": -0.0137
+  },
+  "kelly_improves_sharpe": false,
+  "kelly_improves_dd": true,
+  "verdict": "NO EDGE: Kelly overlay does not beat existing vol/DD scale. Do not promote."
+}

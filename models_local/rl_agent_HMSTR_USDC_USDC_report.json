@@ -1,0 +1,10 @@
+{
+  "symbol": "HMSTR/USDC:USDC",
+  "n_candles": 298,
+  "val": {
+    "sortino": -5.0161081901583255,
+    "total_roi": -0.07818134715025904,
+    "n_trades": 1
+  },
+  "promoted": false
+}

@@ -1,0 +1,10 @@
+{
+  "symbol": "BLUR/USDC:USDC",
+  "n_candles": 282,
+  "val": {
+    "sortino": 0.5154277281772603,
+    "total_roi": 0.003165737548595393,
+    "n_trades": 1
+  },
+  "promoted": false
+}

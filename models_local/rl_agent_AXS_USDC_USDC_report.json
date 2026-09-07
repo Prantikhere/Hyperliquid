@@ -1,0 +1,10 @@
+{
+  "symbol": "AXS/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": -4.169361539331442,
+    "total_roi": -0.018107264206877582,
+    "n_trades": 1
+  },
+  "promoted": false
+}

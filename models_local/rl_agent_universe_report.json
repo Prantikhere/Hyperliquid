@@ -1,0 +1,1887 @@
+{
+  "n_symbols": 219,
+  "n_promoted": 0,
+  "promoted_symbols": [],
+  "results": [
+    {
+      "symbol": "AAVE/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": -3.2883622903156837,
+        "total_roi": -0.008811252832184757,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "ACE/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "ADA/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": -3.103747728049631,
+        "total_roi": -0.007449202328339011,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "AERO/USDC:USDC",
+      "n_candles": 291,
+      "val": {
+        "sortino": 3.7575903109434647,
+        "total_roi": 0.012435802971220822,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "AI/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "AI16Z/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "AIXBT/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "ALGO/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": -1.4581011851713066,
+        "total_roi": -0.0038569271257598015,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "ALT/USDC:USDC",
+      "n_candles": 297,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "ANIME/USDC:USDC",
+      "n_candles": 290,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "APE/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "APEX/USDC:USDC",
+      "n_candles": 297,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "APT/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "AR/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": -3.3290266151017383,
+        "total_roi": -0.008665849673202608,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "ARB/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 14.52718657657213,
+        "total_roi": 0.03623038152354252,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "ASTER/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 8.226102781045848,
+        "total_roi": 0.008872026135097855,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "ATOM/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 21.464284830765415,
+        "total_roi": 0.051344633958026575,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "AVAX/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": -14.384433175851116,
+        "total_roi": -0.04627346580570357,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "AVNT/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "AXL/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "AXS/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": -4.169361539331442,
+        "total_roi": -0.018107264206877582,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "AZTEC/USDC:USDC",
+      "n_candles": 286,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "BABY/USDC:USDC",
+      "n_candles": 295,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "BADGER/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "BANANA/USDC:USDC",
+      "n_candles": 299,
+      "val": {
+        "sortino": -30.60425669360334,
+        "total_roi": -0.0901752794184868,
+        "n_trades": 43
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "BERA/USDC:USDC",
+      "n_candles": 268,
+      "val": {
+        "sortino": -3.7854504843719012,
+        "total_roi": -0.033257756331368515,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "BIGTIME/USDC:USDC",
+      "n_candles": 296,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "BIO/USDC:USDC",
+      "n_candles": 271,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "BLAST/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "BLUR/USDC:USDC",
+      "n_candles": 282,
+      "val": {
+        "sortino": 0.5154277281772603,
+        "total_roi": 0.003165737548595393,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "BLZ/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "BNB/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "BRETT/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": -1.6309328746648997,
+        "total_roi": -0.03549508816120894,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "BSV/USDC:USDC",
+      "n_candles": 298,
+      "val": {
+        "sortino": -5.443213751450506,
+        "total_roi": -0.02521383457636217,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "BTC/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": -0.7482610317056843,
+        "total_roi": -0.0010329830614806967,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "CAKE/USDC:USDC",
+      "n_candles": 293,
+      "val": {
+        "sortino": 10.496018473610464,
+        "total_roi": 0.01902041791860154,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "CANTO/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "CASHCAT/USDC:USDC",
+      "n_candles": 213,
+      "val": {
+        "sortino": -5.285236724982768,
+        "total_roi": -0.30989574712271706,
+        "n_trades": 30
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "CATI/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "CC/USDC:USDC",
+      "n_candles": 298,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "CELO/USDC:USDC",
+      "n_candles": 285,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "CHILLGUY/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "CHIP/USDC:USDC",
+      "n_candles": 294,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "CHZ/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "COMP/USDC:USDC",
+      "n_candles": 297,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "DASH/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 88.03770390921925,
+        "total_roi": 0.016859753920072773,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "DOGE/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "DOOD/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "DYDX/USDC:USDC",
+      "n_candles": 292,
+      "val": {
+        "sortino": -7.937595686714968,
+        "total_roi": -0.03698829694323125,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "DYM/USDC:USDC",
+      "n_candles": 298,
+      "val": {
+        "sortino": -3.1041279927334045,
+        "total_roi": -0.059606644518272245,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "EIGEN/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 2.0696144984065348,
+        "total_roi": 0.011738775510204524,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "ENS/USDC:USDC",
+      "n_candles": 277,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "ETC/USDC:USDC",
+      "n_candles": 299,
+      "val": {
+        "sortino": 2.3974199956893503,
+        "total_roi": 0.006241481646061864,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "ETH/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "FARTCOIN/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": -4.516529863522676,
+        "total_roi": -0.022395679105604804,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "FELIX-CRCL/USDC:USDC",
+      "n_candles": 273,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "FELIX-TSLA/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "FET/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": -9.358846682159149,
+        "total_roi": -0.022257618976129656,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "FIL/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "FOGO/USDC:USDC",
+      "n_candles": 292,
+      "val": {
+        "sortino": -3.9991477306323877,
+        "total_roi": -0.03004461795872848,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "FRIEND/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "FTM/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "FTT/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "FXS/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "GALA/USDC:USDC",
+      "n_candles": 296,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "GAS/USDC:USDC",
+      "n_candles": 292,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "GMT/USDC:USDC",
+      "n_candles": 289,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "GOAT/USDC:USDC",
+      "n_candles": 285,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "GRAM/USDC:USDC",
+      "n_candles": 291,
+      "val": {
+        "sortino": -5.626548242553214,
+        "total_roi": -0.02110280126849895,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "GRASS/USDC:USDC",
+      "n_candles": 293,
+      "val": {
+        "sortino": -2.246560846807966,
+        "total_roi": -0.022218138559829348,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "GRIFFAIN/USDC:USDC",
+      "n_candles": 299,
+      "val": {
+        "sortino": 68.64757548348068,
+        "total_roi": 0.015825931485078826,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "HBAR/USDC:USDC",
+      "n_candles": 290,
+      "val": {
+        "sortino": 7.8560872370625825,
+        "total_roi": 0.013130424749512537,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "HEMI/USDC:USDC",
+      "n_candles": 299,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "HMSTR/USDC:USDC",
+      "n_candles": 298,
+      "val": {
+        "sortino": -5.0161081901583255,
+        "total_roi": -0.07818134715025904,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "HPOS/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "HYPE/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 6.73512766980938,
+        "total_roi": 0.10864833508127902,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "HYPER/USDC:USDC",
+      "n_candles": 291,
+      "val": {
+        "sortino": 1.5225919097168588,
+        "total_roi": 0.016018325347576745,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "ICP/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "ILV/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "IMX/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 1.4436122449562063,
+        "total_roi": 0.008168533742885842,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "INIT/USDC:USDC",
+      "n_candles": 285,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "INJ/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": -10.380493327809514,
+        "total_roi": -0.0405984778753109,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "IO/USDC:USDC",
+      "n_candles": 296,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "IOTA/USDC:USDC",
+      "n_candles": 298,
+      "val": {
+        "sortino": 3.943745688083913,
+        "total_roi": 0.011754926581380776,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "IP/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "JELLY/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "JELLYJELLY/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "JOE/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "JTO/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "JUP/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "KAITO/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "KAS/USDC:USDC",
+      "n_candles": 294,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "KBONK/USDC:USDC",
+      "n_candles": 299,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "KDOGS/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "KLUNC/USDC:USDC",
+      "n_candles": 297,
+      "val": {
+        "sortino": 2.058714848231316,
+        "total_roi": 0.019926075752127792,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "KNEIRO/USDC:USDC",
+      "n_candles": 296,
+      "val": {
+        "sortino": -1.5577247890899644,
+        "total_roi": -0.010424326763953662,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "KPEPE/USDC:USDC",
+      "n_candles": 299,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "KSHIB/USDC:USDC",
+      "n_candles": 294,
+      "val": {
+        "sortino": -14.745587570722906,
+        "total_roi": -0.028952606555521787,
+        "n_trades": 43
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "LAUNCHCOIN/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "LAYER/USDC:USDC",
+      "n_candles": 279,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "LDO/USDC:USDC",
+      "n_candles": 298,
+      "val": {
+        "sortino": -6.798531644467412,
+        "total_roi": -0.02273034817252728,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "LINEA/USDC:USDC",
+      "n_candles": 239,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "LISTA/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "LIT/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": -2.531063614372001,
+        "total_roi": -0.023877464730633013,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "MANTA/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 2.1629314872206002,
+        "total_roi": 0.0030218463706837007,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "MATIC/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "MAV/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "MAVIA/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "ME/USDC:USDC",
+      "n_candles": 292,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "MEGA/USDC:USDC",
+      "n_candles": 298,
+      "val": {
+        "sortino": -3.0987091809260154,
+        "total_roi": -0.07741627772896997,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "MELANIA/USDC:USDC",
+      "n_candles": 198,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "MEME/USDC:USDC",
+      "n_candles": 239,
+      "val": {
+        "sortino": 2.7281209541426716,
+        "total_roi": 0.02833173076923101,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "MERL/USDC:USDC",
+      "n_candles": 299,
+      "val": {
+        "sortino": 14.075871248709094,
+        "total_roi": 0.07774495916927138,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "MET/USDC:USDC",
+      "n_candles": 288,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "MEW/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "MINA/USDC:USDC",
+      "n_candles": 291,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "MKR/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "MON/USDC:USDC",
+      "n_candles": 298,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "MOODENG/USDC:USDC",
+      "n_candles": 293,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "MORPHO/USDC:USDC",
+      "n_candles": 299,
+      "val": {
+        "sortino": 4.823145577164751,
+        "total_roi": 0.009959354936555309,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "MOVE/USDC:USDC",
+      "n_candles": 299,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "NEAR/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "NEIROETH/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "NEO/USDC:USDC",
+      "n_candles": 291,
+      "val": {
+        "sortino": -6.664189098514765,
+        "total_roi": -0.061892425598568,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "NFTI/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "NIL/USDC:USDC",
+      "n_candles": 299,
+      "val": {
+        "sortino": -7.843549595267131,
+        "total_roi": -0.18366608618940627,
+        "n_trades": 2
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "NOT/USDC:USDC",
+      "n_candles": 291,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "NTRN/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "NXPC/USDC:USDC",
+      "n_candles": 299,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "OM/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "OMNI/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "ONDO/USDC:USDC",
+      "n_candles": 299,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "OP/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 5.8621939070312985,
+        "total_roi": 0.014109287159883133,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "ORDI/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": -3.4954086031315996,
+        "total_roi": -0.021079221722084984,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "OX/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "PANDORA/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "PAXG/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "PENDLE/USDC:USDC",
+      "n_candles": 299,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "PENGU/USDC:USDC",
+      "n_candles": 297,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "PEOPLE/USDC:USDC",
+      "n_candles": 294,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "PIXEL/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "PNUT/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "POL/USDC:USDC",
+      "n_candles": 293,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "POLYX/USDC:USDC",
+      "n_candles": 239,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "POPCAT/USDC:USDC",
+      "n_candles": 298,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "PROMPT/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "PROVE/USDC:USDC",
+      "n_candles": 281,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "PUMP/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 12.142974446471998,
+        "total_roi": 0.05902904411764709,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "PURR/USDC:USDC",
+      "n_candles": 266,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "PYTH/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": -7.849829959054365,
+        "total_roi": -0.04104458628509944,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "RENDER/USDC:USDC",
+      "n_candles": 299,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "REQ/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "RESOLV/USDC:USDC",
+      "n_candles": 281,
+      "val": {
+        "sortino": -2.282801747667823,
+        "total_roi": -0.0004999999999999449,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "REZ/USDC:USDC",
+      "n_candles": 298,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "RLB/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "RNDR/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "RSR/USDC:USDC",
+      "n_candles": 288,
+      "val": {
+        "sortino": -5.302995858296199,
+        "total_roi": -0.011341002371832776,
+        "n_trades": 42
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "RUNE/USDC:USDC",
+      "n_candles": 298,
+      "val": {
+        "sortino": 0.6690333191325408,
+        "total_roi": 0.0013525973100136923,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "S/USDC:USDC",
+      "n_candles": 267,
+      "val": {
+        "sortino": -3.9802387368616166,
+        "total_roi": -0.037755945191787044,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "SAGA/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": -93.33027303592202,
+        "total_roi": -0.042577861403396366,
+        "n_trades": 44
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "SAND/USDC:USDC",
+      "n_candles": 299,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "SCAM-CHF/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "SCAM-EUR/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "SCR/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "SKR/USDC:USDC",
+      "n_candles": 299,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "SKY/USDC:USDC",
+      "n_candles": 293,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "SNX/USDC:USDC",
+      "n_candles": 295,
+      "val": {
+        "sortino": -7.9981932072670405,
+        "total_roi": -0.062341493736253084,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "SOL/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "SOPH/USDC:USDC",
+      "n_candles": 252,
+      "val": {
+        "sortino": 3.746016661580366,
+        "total_roi": 0.038803384768541616,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "SPX/USDC:USDC",
+      "n_candles": 269,
+      "val": {
+        "sortino": -3.6306494417112503,
+        "total_roi": -0.022268215408636327,
+        "n_trades": 2
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "STABLE/USDC:USDC",
+      "n_candles": 297,
+      "val": {
+        "sortino": 15.380181187224515,
+        "total_roi": 0.02922697480290637,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "STBL/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "STG/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "STRAX/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "STX/USDC:USDC",
+      "n_candles": 292,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "SUI/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 3.0226745076827695,
+        "total_roi": 0.006176706268403054,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "SUPER/USDC:USDC",
+      "n_candles": 299,
+      "val": {
+        "sortino": -3.5381071747383612,
+        "total_roi": -0.03497731551741867,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "SUSHI/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 2.612141354558353,
+        "total_roi": 0.018062757517988137,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "SYRUP/USDC:USDC",
+      "n_candles": 298,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "TAO/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "TIA/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": -0.16130323308254002,
+        "total_roi": -0.0012082487841011957,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "TNSR/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "TON/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "TOON-DOWNSIDE/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "TOON-PHISH/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "TOON-UPSIDE/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "TRB/USDC:USDC",
+      "n_candles": 291,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "TRUMP/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": -9.9436990975702,
+        "total_roi": -0.04728250221103447,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "TST/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "TURBO/USDC:USDC",
+      "n_candles": 297,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "UMA/USDC:USDC",
+      "n_candles": 298,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "UNIBOT/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "UNIT-ES/USDC:USDC",
+      "n_candles": 223,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "UNIT-NQ/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "USTC/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "USUAL/USDC:USDC",
+      "n_candles": 224,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "VET/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "VINE/USDC:USDC",
+      "n_candles": 289,
+      "val": {
+        "sortino": 111.98869165626203,
+        "total_roi": 0.02511423118865852,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "VIRTUAL/USDC:USDC",
+      "n_candles": 289,
+      "val": {
+        "sortino": -9.101681624824364,
+        "total_roi": -0.08087632210227869,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "VOLMEX-$EVIV/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "VOLMEX-BVIV/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "VVV/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 10.621570338804535,
+        "total_roi": 0.08893914039105155,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "W/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "WCT/USDC:USDC",
+      "n_candles": 159,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "WIF/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": -2.7935668502002993,
+        "total_roi": -0.012160356427139973,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "WLD/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": -9.950590241638098,
+        "total_roi": -0.049680363100784164,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "WLFI/USDC:USDC",
+      "n_candles": 298,
+      "val": {
+        "sortino": -1.1835139316943537,
+        "total_roi": -0.002774485709083785,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "XAI/USDC:USDC",
+      "n_candles": 299,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "XLM/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "XMR/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": -10.383457902916124,
+        "total_roi": -0.04094804537431207,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "XPL/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 3.8819519983127937,
+        "total_roi": 0.021776338559966524,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "YZY/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "ZEC/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "ZEN/USDC:USDC",
+      "n_candles": 300,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "ZEREBRO/USDC:USDC",
+      "skipped": true,
+      "n_candles": 0
+    },
+    {
+      "symbol": "ZETA/USDC:USDC",
+      "n_candles": 248,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "ZK/USDC:USDC",
+      "n_candles": 290,
+      "val": {
+        "sortino": -2.2284493251043034,
+        "total_roi": -0.0004999999999999449,
+        "n_trades": 1
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "ZORA/USDC:USDC",
+      "n_candles": 298,
+      "val": {
+        "sortino": 0.0,
+        "total_roi": 0.0,
+        "n_trades": 0
+      },
+      "promoted": false
+    },
+    {
+      "symbol": "ZRO/USDC:USDC",
+      "n_candles": 296,
+      "val": {
+        "sortino": -12.006600159581494,
+        "total_roi": -0.06076718308897211,
+        "n_trades": 1
+      },
+      "promoted": false
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "symbol": "ETC/USDC:USDC",
+  "n_candles": 299,
+  "val": {
+    "sortino": 2.3974199956893503,
+    "total_roi": 0.006241481646061864,
+    "n_trades": 1
+  },
+  "promoted": false
+}

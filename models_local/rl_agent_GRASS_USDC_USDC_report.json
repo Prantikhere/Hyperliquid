@@ -1,0 +1,10 @@
+{
+  "symbol": "GRASS/USDC:USDC",
+  "n_candles": 293,
+  "val": {
+    "sortino": -2.246560846807966,
+    "total_roi": -0.022218138559829348,
+    "n_trades": 1
+  },
+  "promoted": false
+}

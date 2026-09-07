@@ -1,0 +1,10 @@
+{
+  "symbol": "BANANA/USDC:USDC",
+  "n_candles": 299,
+  "val": {
+    "sortino": -30.60425669360334,
+    "total_roi": -0.0901752794184868,
+    "n_trades": 43
+  },
+  "promoted": false
+}

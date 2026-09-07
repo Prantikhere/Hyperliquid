@@ -1,0 +1,10 @@
+{
+  "symbol": "DYDX/USDC:USDC",
+  "n_candles": 292,
+  "val": {
+    "sortino": -7.937595686714968,
+    "total_roi": -0.03698829694323125,
+    "n_trades": 1
+  },
+  "promoted": false
+}

@@ -1,0 +1,10 @@
+{
+  "symbol": "WIF/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": -2.7935668502002993,
+    "total_roi": -0.012160356427139973,
+    "n_trades": 1
+  },
+  "promoted": false
+}

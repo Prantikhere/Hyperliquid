@@ -1,0 +1,10 @@
+{
+  "symbol": "WLD/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": -9.950590241638098,
+    "total_roi": -0.049680363100784164,
+    "n_trades": 1
+  },
+  "promoted": false
+}

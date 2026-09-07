@@ -1,0 +1,10 @@
+{
+  "symbol": "ORDI/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": -3.4954086031315996,
+    "total_roi": -0.021079221722084984,
+    "n_trades": 1
+  },
+  "promoted": false
+}

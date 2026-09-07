@@ -1,0 +1,10 @@
+{
+  "symbol": "FARTCOIN/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": -4.516529863522676,
+    "total_roi": -0.022395679105604804,
+    "n_trades": 1
+  },
+  "promoted": false
+}

@@ -1,0 +1,10 @@
+{
+  "symbol": "NXPC/USDC:USDC",
+  "n_candles": 299,
+  "val": {
+    "sortino": 0.0,
+    "total_roi": 0.0,
+    "n_trades": 0
+  },
+  "promoted": false
+}

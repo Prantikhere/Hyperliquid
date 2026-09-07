@@ -1,0 +1,10 @@
+{
+  "symbol": "XPL/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": 3.8819519983127937,
+    "total_roi": 0.021776338559966524,
+    "n_trades": 1
+  },
+  "promoted": false
+}

@@ -1,0 +1,10 @@
+{
+  "symbol": "NEO/USDC:USDC",
+  "n_candles": 291,
+  "val": {
+    "sortino": -6.664189098514765,
+    "total_roi": -0.061892425598568,
+    "n_trades": 1
+  },
+  "promoted": false
+}

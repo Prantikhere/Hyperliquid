@@ -1,0 +1,10 @@
+{
+  "symbol": "LDO/USDC:USDC",
+  "n_candles": 298,
+  "val": {
+    "sortino": -6.798531644467412,
+    "total_roi": -0.02273034817252728,
+    "n_trades": 1
+  },
+  "promoted": false
+}

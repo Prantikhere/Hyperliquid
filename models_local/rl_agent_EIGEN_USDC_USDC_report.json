@@ -1,0 +1,10 @@
+{
+  "symbol": "EIGEN/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": 2.0696144984065348,
+    "total_roi": 0.011738775510204524,
+    "n_trades": 1
+  },
+  "promoted": false
+}

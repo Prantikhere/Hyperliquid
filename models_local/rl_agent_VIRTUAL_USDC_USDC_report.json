@@ -1,0 +1,10 @@
+{
+  "symbol": "VIRTUAL/USDC:USDC",
+  "n_candles": 289,
+  "val": {
+    "sortino": -9.101681624824364,
+    "total_roi": -0.08087632210227869,
+    "n_trades": 1
+  },
+  "promoted": false
+}

@@ -1,0 +1,18 @@
+{
+  "symbol": "ETC/USDT",
+  "config": {
+    "train_frac": 0.7,
+    "val_frac": 0.15,
+    "total_timesteps": 20000,
+    "policy": "MlpPolicy",
+    "seed": 42,
+    "promote_min_trades": 15,
+    "promote_min_sortino": 0.5
+  },
+  "val": {
+    "sortino": 2.896529120498144,
+    "total_roi": 0.017645234493191886,
+    "n_trades": 1
+  },
+  "promoted": false
+}

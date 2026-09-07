@@ -1,0 +1,10 @@
+{
+  "symbol": "ZK/USDC:USDC",
+  "n_candles": 290,
+  "val": {
+    "sortino": -2.2284493251043034,
+    "total_roi": -0.0004999999999999449,
+    "n_trades": 1
+  },
+  "promoted": false
+}

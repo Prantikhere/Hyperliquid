@@ -1,0 +1,10 @@
+{
+  "symbol": "SPX/USDC:USDC",
+  "n_candles": 269,
+  "val": {
+    "sortino": -3.6306494417112503,
+    "total_roi": -0.022268215408636327,
+    "n_trades": 2
+  },
+  "promoted": false
+}

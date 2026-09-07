@@ -1,0 +1,10 @@
+{
+  "symbol": "FOGO/USDC:USDC",
+  "n_candles": 292,
+  "val": {
+    "sortino": -3.9991477306323877,
+    "total_roi": -0.03004461795872848,
+    "n_trades": 1
+  },
+  "promoted": false
+}

@@ -1,0 +1,10 @@
+{
+  "symbol": "SOPH/USDC:USDC",
+  "n_candles": 252,
+  "val": {
+    "sortino": 3.746016661580366,
+    "total_roi": 0.038803384768541616,
+    "n_trades": 1
+  },
+  "promoted": false
+}

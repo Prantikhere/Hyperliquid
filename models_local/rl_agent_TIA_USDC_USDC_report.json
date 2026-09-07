@@ -1,0 +1,10 @@
+{
+  "symbol": "TIA/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": -0.16130323308254002,
+    "total_roi": -0.0012082487841011957,
+    "n_trades": 1
+  },
+  "promoted": false
+}

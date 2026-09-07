@@ -1,0 +1,10 @@
+{
+  "symbol": "LIT/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": -2.531063614372001,
+    "total_roi": -0.023877464730633013,
+    "n_trades": 1
+  },
+  "promoted": false
+}

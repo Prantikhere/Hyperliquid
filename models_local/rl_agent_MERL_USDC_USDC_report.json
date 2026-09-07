@@ -1,0 +1,10 @@
+{
+  "symbol": "MERL/USDC:USDC",
+  "n_candles": 299,
+  "val": {
+    "sortino": 14.075871248709094,
+    "total_roi": 0.07774495916927138,
+    "n_trades": 1
+  },
+  "promoted": false
+}

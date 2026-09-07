@@ -1,0 +1,10 @@
+{
+  "symbol": "IOTA/USDC:USDC",
+  "n_candles": 298,
+  "val": {
+    "sortino": 3.943745688083913,
+    "total_roi": 0.011754926581380776,
+    "n_trades": 1
+  },
+  "promoted": false
+}

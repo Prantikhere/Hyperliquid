@@ -1,0 +1,10 @@
+{
+  "symbol": "SUSHI/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": 2.612141354558353,
+    "total_roi": 0.018062757517988137,
+    "n_trades": 1
+  },
+  "promoted": false
+}

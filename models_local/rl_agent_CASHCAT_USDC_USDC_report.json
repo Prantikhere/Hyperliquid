@@ -1,0 +1,10 @@
+{
+  "symbol": "CASHCAT/USDC:USDC",
+  "n_candles": 213,
+  "val": {
+    "sortino": -5.285236724982768,
+    "total_roi": -0.30989574712271706,
+    "n_trades": 30
+  },
+  "promoted": false
+}

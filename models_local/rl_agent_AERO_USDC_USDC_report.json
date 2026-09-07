@@ -1,0 +1,10 @@
+{
+  "symbol": "AERO/USDC:USDC",
+  "n_candles": 291,
+  "val": {
+    "sortino": 3.7575903109434647,
+    "total_roi": 0.012435802971220822,
+    "n_trades": 1
+  },
+  "promoted": false
+}

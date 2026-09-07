@@ -1,0 +1,10 @@
+{
+  "symbol": "BRETT/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": -1.6309328746648997,
+    "total_roi": -0.03549508816120894,
+    "n_trades": 1
+  },
+  "promoted": false
+}

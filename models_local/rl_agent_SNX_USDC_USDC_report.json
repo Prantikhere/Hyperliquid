@@ -1,0 +1,10 @@
+{
+  "symbol": "SNX/USDC:USDC",
+  "n_candles": 295,
+  "val": {
+    "sortino": -7.9981932072670405,
+    "total_roi": -0.062341493736253084,
+    "n_trades": 1
+  },
+  "promoted": false
+}

@@ -1,0 +1,10 @@
+{
+  "symbol": "ADA/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": -3.103747728049631,
+    "total_roi": -0.007449202328339011,
+    "n_trades": 1
+  },
+  "promoted": false
+}

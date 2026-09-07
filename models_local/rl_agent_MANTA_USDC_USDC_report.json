@@ -1,0 +1,10 @@
+{
+  "symbol": "MANTA/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": 2.1629314872206002,
+    "total_roi": 0.0030218463706837007,
+    "n_trades": 1
+  },
+  "promoted": false
+}

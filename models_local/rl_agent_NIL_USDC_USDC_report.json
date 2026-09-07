@@ -1,0 +1,10 @@
+{
+  "symbol": "NIL/USDC:USDC",
+  "n_candles": 299,
+  "val": {
+    "sortino": -7.843549595267131,
+    "total_roi": -0.18366608618940627,
+    "n_trades": 2
+  },
+  "promoted": false
+}

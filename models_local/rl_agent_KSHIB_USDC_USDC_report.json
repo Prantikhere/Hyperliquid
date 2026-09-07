@@ -1,0 +1,10 @@
+{
+  "symbol": "KSHIB/USDC:USDC",
+  "n_candles": 294,
+  "val": {
+    "sortino": -14.745587570722906,
+    "total_roi": -0.028952606555521787,
+    "n_trades": 43
+  },
+  "promoted": false
+}

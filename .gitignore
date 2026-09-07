@@ -1,0 +1,45 @@
+# === SECRETS ===
+.env
+.env.*
+!.env.example
+Key.txt
+AutoTradingprompt.txt
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# === Data / State ===
+state/
+data/
+logs/
+*.log
+
+# === Redis ===
+dump.rdb
+
+# === Model artifacts ===
+models_local/*.pkl
+models_local/*.joblib
+models_local/*.xgb
+models_local/meta_learner.json
+
+# === IDE ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# === OS ===
+.DS_Store
+Thumbs.db

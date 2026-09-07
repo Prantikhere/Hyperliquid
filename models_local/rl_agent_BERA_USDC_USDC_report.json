@@ -1,0 +1,10 @@
+{
+  "symbol": "BERA/USDC:USDC",
+  "n_candles": 268,
+  "val": {
+    "sortino": -3.7854504843719012,
+    "total_roi": -0.033257756331368515,
+    "n_trades": 1
+  },
+  "promoted": false
+}

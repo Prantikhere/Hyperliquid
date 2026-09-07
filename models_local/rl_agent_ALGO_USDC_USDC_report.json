@@ -1,0 +1,10 @@
+{
+  "symbol": "ALGO/USDC:USDC",
+  "n_candles": 300,
+  "val": {
+    "sortino": -1.4581011851713066,
+    "total_roi": -0.0038569271257598015,
+    "n_trades": 1
+  },
+  "promoted": false
+}

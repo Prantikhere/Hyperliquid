@@ -1,0 +1,10 @@
+{
+  "symbol": "VINE/USDC:USDC",
+  "n_candles": 289,
+  "val": {
+    "sortino": 111.98869165626203,
+    "total_roi": 0.02511423118865852,
+    "n_trades": 1
+  },
+  "promoted": false
+}
