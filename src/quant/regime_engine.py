@@ -81,9 +81,9 @@ class RegimeEngine:
 
             regime = self.detect_regime(prices)
             if "HIGH_VOL" in regime:
-                sl = max(0.020, min(0.06, atr * 2.5))  # wider stop in expanding vol
+                sl = max(0.015, min(0.05, atr * 2.0))  # tighter stop in high vol
             else:
-                sl = max(0.015, min(0.05, atr * 2.0))
+                sl = max(0.010, min(0.04, atr * 1.5))  # tighter stop for better R:R
 
             # Payoff ratio: 3:1 in all regimes. The validated MR edge has a narrow alpha,
             # so we need a high payoff ratio to ensure positive expectancy even at ~40% hit rate.
