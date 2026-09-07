@@ -4,35 +4,47 @@ from src.utils.logger import log
 class RiskManager:
     def __init__(self, bankroll=None, db=None):
         self.db = db
-        # Initial Bankroll from environment
         self.bankroll = float(os.getenv("BANKROLL", bankroll or 467.06))
-        # Strict Risk Rule: Max 1-2% equity risk per trade
-        self.max_risk_per_trade_pct = float(os.getenv("MAX_RISK_PER_TRADE", 0.02)) 
+        self.max_risk_per_trade_pct = float(os.getenv("MAX_RISK_PER_TRADE", 0.10))
         self.max_leverage = float(os.getenv("MAX_LEVERAGE", 5.0))
         self.daily_loss = 0.0
         self.max_daily_loss_pct = 5.0
+        # Kelly parameters: win_rate and win_loss_ratio from backtest stats
+        self.kelly_win_rate = float(os.getenv("KELLY_WIN_RATE", 0.55))
+        self.kelly_win_loss_ratio = float(os.getenv("KELLY_WIN_LOSS_RATIO", 2.0))
+        self.kelly_fraction = float(os.getenv("KELLY_FRACTION", 0.25))
+
+    def calculate_kelly_fraction(self, confidence):
+        """Calculate Kelly-optimal fraction of bankroll to risk.
+        Uses fractional Kelly (25%) for safety. Adjusts Kelly by confidence
+        so low-confidence trades get smaller sizing."""
+        p = self.kelly_win_rate * (0.8 + 0.2 * confidence)
+        q = 1.0 - p
+        b = self.kelly_win_loss_ratio
+        kelly = (b * p - q) / b if b > 0 else 0.0
+        kelly = max(kelly, 0.0)
+        # Apply fractional Kelly and confidence scaling
+        fraction = kelly * self.kelly_fraction * min(confidence / 0.6, 1.0)
+        return min(fraction, 0.15)  # Hard cap at 15% of bankroll
 
     def calculate_position_size(self, confidence, price, leverage=5.0):
-        """
-        Calculates position size enforcing the strict 1-2% equity risk rule.
-        Risk is defined as the amount of capital lost if the trade hits a 1% move.
-        """
+        """Calculate position size using Kelly criterion with regime-aware scaling."""
         if confidence < 0.4:
             return 0
-            
-        # Target Risk Amount: sliding scale between 2% and 3% based on confidence (0.4 to 1.0).
-        # Base floor raised to 2% so positions clear HL's $10 minimum even after regime/sortino scaling.
-        base_risk_pct = 0.02
-        risk_pct = base_risk_pct + (self.max_risk_per_trade_pct - base_risk_pct) * ((confidence - 0.4) / 0.6)
-        risk_amount = self.bankroll * risk_pct
-        
-        # Position Size = Risk Amount / Stop Loss Percentage (assuming 2% stop loss for crypto)
-        # For simple directional bet: Size = Bankroll * risk_pct * leverage
+
+        # Kelly-based risk fraction
+        kelly_risk = self.calculate_kelly_fraction(confidence)
+
+        # Fallback floor: ensure minimum 5% risk so positions clear $10 testnet minimum
+        # At $185 bankroll, 5% risk * 5x leverage = $46.25 position (clears $10 easily)
+        base_risk_pct = 0.05
+        risk_pct = max(kelly_risk, base_risk_pct)
+
         position_usd = self.bankroll * risk_pct * leverage
-        
-        # Absolute hard cap at 25% of bankroll for any single trade
-        position_usd = min(position_usd, self.bankroll * 0.25)
-        
+
+        # Absolute hard cap at 30% of bankroll for any single trade
+        position_usd = min(position_usd, self.bankroll * 0.30)
+
         return position_usd
 
     def check_risk_limits(self):
@@ -41,7 +53,6 @@ class RiskManager:
                 from src.utils.db import DatabaseManager
                 self.db = DatabaseManager()
             db = self.db
-            # Calculate sum of realized PnL for trades completed today since UTC midnight
             query = """
             SELECT SUM((price * size) * (metadata->>'outcome')::numeric)
             FROM system_trades
@@ -52,7 +63,6 @@ class RiskManager:
             result = db.execute_query(query)
             if result and result[0][0] is not None:
                 realized_pnl = float(result[0][0])
-                # daily_loss is defined as a positive number representing loss
                 self.daily_loss = -realized_pnl if realized_pnl < 0 else 0.0
                 log.info(f"Daily realized PnL check: ${realized_pnl:+.2f} | Current daily loss: ${self.daily_loss:.2f}")
             else:
@@ -69,4 +79,3 @@ class RiskManager:
 
     def update_bankroll(self, new_balance):
         self.bankroll = new_balance
-

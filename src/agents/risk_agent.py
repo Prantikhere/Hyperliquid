@@ -7,76 +7,71 @@ class RiskAgent:
         self.risk_manager = RiskManager(db=db)
 
     def evaluate_trade(self, symbol, side, confidence, current_price, regime=None, sortino=1.0):
-        """Evaluate if a trade is within risk limits and calculate position size with regime-aware and Sortino scaling."""
+        """Evaluate if a trade is within risk limits and calculate position size
+        using Kelly criterion with regime-aware and Sortino scaling."""
         try:
-            # 1. Determine Asset Class (Majors: BTC/ETH vs Altcoins)
             symbol_upper = symbol.upper()
             is_major = "BTC" in symbol_upper or "ETH" in symbol_upper
-            
-            # 2. Determine dynamic leverage and regime-aware scaling factor
+
+            # Regime-aware leverage and scale factor
             scale_factor = 1.0
             leverage = 5.0
-            
+
             if regime:
                 regime_upper = regime.upper()
                 if "MEAN_REVERTING" in regime_upper:
-                    # Validated primary edge (with or without HIGH_VOL): full sizing.
                     scale_factor = 1.0
                     if confidence >= 0.8:
                         leverage = 10.0 if is_major else 7.0
                 elif "TRENDING" in regime_upper:
-                    # Trend is not a validated edge: majors half, altcoins quarter.
                     scale_factor = 0.5 if is_major else 0.25
                 else:
-                    # Neutral: majors half, altcoins scaled down to 20%.
-                    scale_factor = 0.5 if is_major else 0.2
+                    scale_factor = 0.5 if is_major else 0.3
             else:
-                # Fallback if no regime provided: Majors 1.0, Altcoins 0.5
                 scale_factor = 1.0 if is_major else 0.5
-                
+
             if scale_factor <= 0.0:
                 return {"approved": False, "reason": f"Trading halted for Altcoins in {regime or 'UNKNOWN'} regime"}
 
-            # 3. Check global risk limits
             if not self.risk_manager.check_risk_limits():
                 return {"approved": False, "reason": "Global risk limits exceeded"}
 
-            # 4. Calculate position size
-            model_prob = confidence 
-            position_usd = self.risk_manager.calculate_position_size(model_prob, current_price, leverage=leverage)
-            
-            # Apply scaling factor
+            # Kelly-based position sizing
+            position_usd = self.risk_manager.calculate_position_size(confidence, current_price, leverage=leverage)
+
+            # Apply regime scale factor
             position_usd = position_usd * scale_factor
-            
-            # Apply Sortino risk-adjusted multiplier (0.15 to 1.5) — low floor for testnet
-            # where sortino ratios are often depressed due to small sample sizes.
-            sortino_multiplier = float(np.clip(sortino, 0.15, 1.5))
+
+            # Apply Sortino risk-adjusted multiplier (0.5 to 2.0)
+            # Raised floor from 0.15 to 0.5 so testnet positions clear $10 minimum
+            sortino_multiplier = float(np.clip(sortino, 0.5, 2.0))
             position_usd = position_usd * sortino_multiplier
-            
+
             if position_usd <= 0:
-                return {"approved": False, "reason": f"Position size calculation resulted in 0 or negative (scale factor: {scale_factor:.2f}, sortino mult: {sortino_multiplier:.2f})"}
-            
-            # Enforce minimum notional for HL testnet — reject if below exchange minimum
-            # rather than clamping, which defeats the risk cascade.
+                return {"approved": False, "reason": f"Position size 0 (scale={scale_factor:.2f}, sortino={sortino_multiplier:.2f})"}
+
+            # Enforce minimum notional for HL testnet
             if position_usd < 10.0:
-                return {"approved": False, "reason": f"Position size ${position_usd:.2f} below $10 minimum notional (scale={scale_factor:.2f}, sortino={sortino_multiplier:.2f})"}
-            
-            # Absolute hard cap: never risk more than 15% of bankroll on a single position
-            max_position = self.risk_manager.bankroll * 0.15
+                return {"approved": False, "reason": f"Position ${position_usd:.2f} below $10 minimum (scale={scale_factor:.2f}, sortino={sortino_multiplier:.2f})"}
+
+            # Hard cap: never risk more than 25% of bankroll on a single position
+            max_position = self.risk_manager.bankroll * 0.25
             if position_usd > max_position:
                 position_usd = max_position
-            
+
             quantity = position_usd / current_price
-            
-            log.info(f"[RISK_AGENT] Sizing evaluation: {symbol} | Regime: {regime} | Scale Factor: {scale_factor:.2f} | Sortino Mult: {sortino_multiplier:.2f} | Leverage: {leverage}x | Final Position: ${position_usd:.2f}")
-            
+
+            log.info(f"[RISK_AGENT] Kelly sizing: {symbol} | conf={confidence:.2f} | regime={regime} "
+                     f"scale={scale_factor:.2f} sortino={sortino_multiplier:.2f} lev={leverage}x "
+                     f"position=${position_usd:.2f}")
+
             return {
                 "approved": True,
                 "position_usd": position_usd,
                 "quantity": quantity,
                 "symbol": symbol,
                 "side": side,
-                "price": current_price, # Include price for execution and logging
+                "price": current_price,
                 "leverage": leverage
             }
         except Exception as e:
