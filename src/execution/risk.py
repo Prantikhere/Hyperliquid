@@ -38,13 +38,6 @@ class RiskManager:
 
         position_usd = self.bankroll * risk_pct * leverage
 
-        # Hard cap: never exceed testnet margin limit
-        position_usd = min(position_usd, self.max_position_usd)
-
-        # Absolute floor: must clear $10 minimum
-        if position_usd < 10.0:
-            position_usd = 10.0
-
         return position_usd
 
     def check_risk_limits(self):
