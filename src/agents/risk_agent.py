@@ -1,10 +1,34 @@
 import numpy as np
+import asyncio
 from src.execution.risk import RiskManager
+from src.execution.multi_client import MultiExchangeClient
 from src.utils.logger import log
 
 class RiskAgent:
     def __init__(self, db=None):
         self.risk_manager = RiskManager(db=db)
+        self.max_margin_usage_pct = 80.0  # Maximum margin usage percentage
+
+    def _check_margin_available(self):
+        """Check if margin usage is below threshold. Returns (ok, free_margin, usage_pct)."""
+        try:
+            client = MultiExchangeClient()
+            balance = asyncio.get_event_loop().run_until_complete(client.hl.fetch_balance())
+            info = balance.get('info', {})
+            margin = info.get('marginSummary', {})
+            
+            account_value = float(margin.get('accountValue', 0))
+            margin_used = float(margin.get('totalMarginUsed', 0))
+            free_margin = float(balance.get('free', {}).get('USDC', 0))
+            
+            usage_pct = (margin_used / account_value * 100) if account_value > 0 else 100.0
+            
+            log.info(f"[RISK_AGENT] Margin check: account=\${account_value:.2f} used=\${margin_used:.2f} free=\${free_margin:.2f} usage={usage_pct:.1f}%")
+            
+            return usage_pct < self.max_margin_usage_pct, free_margin, usage_pct
+        except Exception as e:
+            log.error(f"[RISK_AGENT] Margin check failed: {e}")
+            return False, 0.0, 100.0
 
     def evaluate_trade(self, symbol, side, confidence, current_price, regime=None, sortino=1.0):
         """Evaluate if a trade is within risk limits and calculate position size
@@ -36,6 +60,11 @@ class RiskAgent:
             if not self.risk_manager.check_risk_limits():
                 return {"approved": False, "reason": "Global risk limits exceeded"}
 
+            # Check margin availability before sizing
+            margin_ok, free_margin, usage_pct = self._check_margin_available()
+            if not margin_ok:
+                return {"approved": False, "reason": f"Margin usage too high: {usage_pct:.1f}% (max: {self.max_margin_usage_pct}%)"}
+
             # Kelly-based position sizing
             position_usd = self.risk_manager.calculate_position_size(confidence, current_price, leverage=leverage)
 
@@ -50,14 +79,19 @@ class RiskAgent:
             if position_usd <= 0:
                 return {"approved": False, "reason": f"Position size 0 (scale={scale_factor:.2f}, sortino={sortino_multiplier:.2f})"}
 
-            # Enforce minimum notional for HL testnet
+            # Enforce minimum notional for HL testnet AFTER all scaling
             if position_usd < 10.0:
-                return {"approved": False, "reason": f"Position ${position_usd:.2f} below $10 minimum (scale={scale_factor:.2f}, sortino={sortino_multiplier:.2f})"}
+                position_usd = 10.0
 
             # Hard cap: never risk more than 25% of bankroll on a single position
             max_position = self.risk_manager.bankroll * 0.25
             if position_usd > max_position:
                 position_usd = max_position
+
+            # Ensure position doesn't exceed available free margin
+            if position_usd > free_margin:
+                position_usd = free_margin
+                log.warning(f"[RISK_AGENT] Position capped to available margin: ${position_usd:.2f}")
 
             quantity = position_usd / current_price
 

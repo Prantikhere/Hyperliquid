@@ -41,8 +41,7 @@ ENTRY_Z = 2.0
 EXIT_Z = 0.5
 MAX_HOLD_H = 96
 LEVERAGE = 2
-PAIR_NOTIONAL_FRAC = 0.55    # raised from 0.35 (2026-08-24): grow capital utilization on the one
-                              # validated pair; entry threshold/edge logic (ENTRY_Z) untouched
+PAIR_NOTIONAL_FRAC = 0.25    # reduced from 0.55 to prevent over-leverage (was causing margin issues)
 MIN_NOTIONAL = 11.0
 POLL_SECONDS = 3600          # hourly, matches signal timeframe
 DD_KILL = 0.15
@@ -244,6 +243,28 @@ class PairsArbExecutor:
         else:
             z_exit = z
         notional = equity * PAIR_NOTIONAL_FRAC * LEVERAGE
+        
+        # Margin safety check: ensure we don't exceed 80% margin usage
+        try:
+            import asyncio
+            from src.execution.multi_client import MultiExchangeClient
+            from dotenv import load_dotenv
+            load_dotenv()
+            
+            async def get_free_margin():
+                client = MultiExchangeClient()
+                balance = await client.hl.fetch_balance()
+                await client.hl.close()
+                return float(balance.get('free', {}).get('USDC', 0))
+            
+            free_margin = asyncio.get_event_loop().run_until_complete(get_free_margin())
+            max_notional = free_margin * 0.8  # Use at most 80% of free margin
+            if notional > max_notional:
+                log.warning(f"[PAIRS_ARB] Notional capped from ${notional:.2f} to ${max_notional:.2f} (free margin: ${free_margin:.2f})")
+                notional = max_notional
+        except Exception as e:
+            log.warning(f"[PAIRS_ARB] Margin check failed: {e}")
+        
         qty_a = notional / cur_a if cur_a > 0 else 0
         # Hedge-matched quantity: spread = price_a - hedge*price_b, so qty_b = qty_a*hedge keeps the
         # position tracking the spread (not dollar-matched to leg B's own price). Fixed 2026-08-25:
