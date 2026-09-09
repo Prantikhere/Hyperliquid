@@ -23,7 +23,9 @@ async def run_parallel():
     ]
 
     print("Init Settlement...")
-    settlement = SettlementAgent(owned_symbols=symbols)
+    # Monitor ALL positions for profit booking (not just HL executor's symbols)
+    # This ensures positions from perp_ls, pairs_arb also get TP/SL management
+    settlement = SettlementAgent(owned_symbols=None)
     
     # Aggressive 60s interval
     interval = 60
