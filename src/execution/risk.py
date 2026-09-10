@@ -12,9 +12,9 @@ class RiskManager:
         # Kelly parameters from backtest stats
         self.kelly_win_rate = float(os.getenv("KELLY_WIN_RATE", 0.55))
         self.kelly_win_loss_ratio = float(os.getenv("KELLY_WIN_LOSS_RATIO", 2.0))
-        self.kelly_fraction = float(os.getenv("KELLY_FRACTION", 0.25))
-        # Testnet hard cap: max position size in USD (HL testnet margin limit)
-        self.max_position_usd = float(os.getenv("MAX_POSITION_USD", 10.0))
+        self.kelly_fraction = float(os.getenv("KELLY_FRACTION", 0.15))
+        # Testnet hard cap: max position size in USD (reduced for better risk management)
+        self.max_position_usd = float(os.getenv("MAX_POSITION_USD", 5.0))
 
     def calculate_kelly_fraction(self, confidence):
         """Calculate Kelly-optimal fraction of bankroll to risk.
