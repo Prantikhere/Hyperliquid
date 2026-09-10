@@ -99,7 +99,28 @@ class SettlementAgent:
                     (side == "LONG" and comp <= 0.5) or (side == "SHORT" and comp >= 0.5)
                 )
 
-                log.info(f"[SETTLEMENT] {exchange_id} {symbol} {side} | ROI: {roi*100:.2f}% | Peak: {peak_roi*100:.2f}% | TP: {tp_threshold*100:.2f}% | SL: {sl_threshold*100:.2f}% | comp: {comp:.2f}")
+                # MARKET TREND-BASED EXITS (NEW LOGIC)
+                # 1. Regime change exit: exit when regime becomes unfavorable
+                regime_unfavorable = False
+                if side == "LONG" and "HIGH_VOL" in (regime or "").upper():
+                    regime_unfavorable = True  # LONG in high vol = risky
+                elif side == "SHORT" and "TRENDING" in (regime or "").upper():
+                    regime_unfavorable = True  # SHORT in uptrend = risky
+
+                # 2. Momentum fade exit: exit when composite drops significantly
+                momentum_fading = (roi > 0.02) and (comp < 0.35)  # In profit but signal weak
+
+                # 3. Time-based exit: exit if held too long without progress (4 hours)
+                import time
+                position_age_key = f"position_age:{exchange_id}:{symbol}"
+                position_age = float(self.redis.get(position_age_key) or 0)
+                if position_age == 0:
+                    self.redis.set(position_age_key, time.time(), ex=86400)  # 24h TTL
+                    position_age = time.time()
+                held_hours = (time.time() - position_age) / 3600
+                stale_position = (held_hours > 4) and (roi < 0.05)  # Held 4h+ with <5% gain
+
+                log.info(f"[SETTLEMENT] {exchange_id} {symbol} {side} | ROI: {roi*100:.2f}% | Peak: {peak_roi*100:.2f}% | TP: {tp_threshold*100:.2f}% | SL: {sl_threshold*100:.2f}% | comp: {comp:.2f} | regime: {regime} | held: {held_hours:.1f}h")
 
                 # Action Logic
                 decision = None
@@ -119,6 +140,21 @@ class SettlementAgent:
                 elif reverted and roi > 0:
                     # Signal reverted to mean while in profit: book the reversion (the validated edge).
                     log.info(f"~~~ REVERSION EXIT for {symbol} on {exchange_id} (comp={comp:.2f}). Booking reversion profit.")
+                    decision = "SELL" if side == "LONG" else "BUY"
+                    order_type = "MARKET"
+                elif regime_unfavorable and roi > 0:
+                    # Market regime became unfavorable while in profit
+                    log.info(f"~~~ REGIME EXIT for {symbol} on {exchange_id} (regime={regime}). Booking profit before regime change impact.")
+                    decision = "SELL" if side == "LONG" else "BUY"
+                    order_type = "MARKET"
+                elif momentum_fading:
+                    # Signal momentum fading while in profit
+                    log.info(f"~~~ MOMENTUM EXIT for {symbol} on {exchange_id} (comp={comp:.2f}). Booking profit before momentum dies.")
+                    decision = "SELL" if side == "LONG" else "BUY"
+                    order_type = "MARKET"
+                elif stale_position:
+                    # Position held too long without progress
+                    log.info(f"~~~ STALE EXIT for {symbol} on {exchange_id} (held={held_hours:.1f}h, ROI={roi*100:.2f}%). Cutting stale position.")
                     decision = "SELL" if side == "LONG" else "BUY"
                     order_type = "MARKET"
 
