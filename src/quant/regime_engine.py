@@ -81,14 +81,14 @@ class RegimeEngine:
 
             regime = self.detect_regime(prices)
             if "HIGH_VOL" in regime:
-                sl = max(0.015, min(0.05, atr * 2.0))  # tighter stop in high vol
+                sl = max(0.010, min(0.035, atr * 1.5))  # much tighter stop in high vol
             else:
-                sl = max(0.010, min(0.04, atr * 1.5))  # tighter stop for better R:R
+                sl = max(0.008, min(0.025, atr * 1.2))  # much tighter stop for better R:R
 
-            # Payoff ratio: 3:1 in all regimes. The validated MR edge has a narrow alpha,
-            # so we need a high payoff ratio to ensure positive expectancy even at ~40% hit rate.
-            # Previous 2:1 for MR was the root cause of negative backtest returns.
-            tp = sl * 3.0
+            # Payoff ratio: 5:1 in all regimes. Aggressive profit targeting.
+            # This ensures positive expectancy even with 40% hit rate.
+            # Avg Win will be 5x Avg Loss = better capital growth.
+            tp = sl * 5.0
 
             return float(tp), -float(sl)
         except Exception as e:

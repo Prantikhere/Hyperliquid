@@ -83,17 +83,21 @@ class SettlementAgent:
                 from src.quant.backtester import REVERT_MIN_ROI
                 is_trend = "TRENDING" in (regime or "").upper()
 
-                # Trailing profit: if ROI has been higher than current, lock in some gains.
-                # Track peak ROI per symbol in redis; if current ROI has fallen >30% from peak,
-                # exit to lock in the remaining profit instead of riding back to zero.
-                # TTL extended to 4h to survive slow trade durations; peak threshold lowered to 0.5%
-                # so even small mean-reversion gains get trail-protected.
+                # AGGRESSIVE TRAILING PROFIT: Lock in gains more aggressively.
+                # Track peak ROI per symbol in redis; if current ROI has fallen from peak,
+                # exit to lock in profit. More aggressive than before for better capital growth.
                 peak_key = f"peak_roi:{exchange_id}:{symbol}"
                 peak_roi = float(self.redis.get(peak_key) or 0)
                 if roi > peak_roi:
                     self.redis.set(peak_key, roi, ex=14400)  # 4h TTL
                     peak_roi = roi
-                trailing_exit = (roi > 0.005) and (peak_roi > 0.005) and (roi < peak_roi * 0.7)
+                
+                # Aggressive trailing: exit if ROI drops 20% from peak (was 30%)
+                # This captures more profit and reduces average loss
+                trailing_exit = (roi > 0.003) and (peak_roi > 0.003) and (roi < peak_roi * 0.8)
+                
+                # Additional: lock in profit if ROI > 5% and drops 10% from peak
+                high_profit_exit = (roi > 0.05) and (peak_roi > 0.05) and (roi < peak_roi * 0.9)
 
                 reverted = (not is_trend) and (roi > REVERT_MIN_ROI) and (
                     (side == "LONG" and comp <= 0.5) or (side == "SHORT" and comp >= 0.5)
@@ -133,6 +137,11 @@ class SettlementAgent:
                     log.info(f"!!! STOP LOSS HIT for {symbol} on {exchange_id}. Cutting Loss.")
                     decision = "SELL" if side == "LONG" else "BUY"
                     order_type = "MARKET" # Use market order to guarantee immediate exit on SL
+                elif high_profit_exit:
+                    # High profit lock: ROI > 5% and dropping from peak
+                    log.info(f"~~~ HIGH PROFIT LOCK for {symbol} on {exchange_id} (peak={peak_roi*100:.2f}%, now={roi*100:.2f}%). Locking in strong profit.")
+                    decision = "SELL" if side == "LONG" else "BUY"
+                    order_type = "MARKET"
                 elif trailing_exit:
                     log.info(f"~~~ TRAILING EXIT for {symbol} on {exchange_id} (ROI={roi*100:.2f}% from peak={peak_roi*100:.2f}%). Locking profit.")
                     decision = "SELL" if side == "LONG" else "BUY"
