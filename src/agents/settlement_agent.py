@@ -6,6 +6,7 @@ from src.utils.db import DatabaseManager
 from src.agents.execution_agent import ExecutionAgent
 from src.quant.regime_engine import RegimeEngine
 from src.quant.multi_strategy import StrategyEnsemble
+from src.quant.learning_module import learning_module
 import redis
 
 class SettlementAgent:
@@ -76,6 +77,17 @@ class SettlementAgent:
                 else:
                     roi = (avg_price - current_price) / avg_price if avg_price > 0 else 0
 
+                # LEARNING CHECK: Check if we should trade this symbol based on past failures
+                should_trade = learning_module.should_trade_symbol(symbol, exchange_id)
+                if not should_trade:
+                    log.warning(f"[LEARNING] Skipping {symbol} on {exchange_id}: Too many past failures")
+                    continue
+
+                # Get adjusted parameters based on learnings
+                adjustments = learning_module.get_adjusted_parameters(symbol, exchange_id, regime)
+                tp_threshold *= adjustments["take_profit_multiplier"]
+                sl_threshold *= adjustments["stop_loss_multiplier"]
+
                 # Trend-following positions ride to TP/SL; only mean-reversion / neutral trades
                 # book at reversion-to-mean. Mirrors backtester.simulate exit model.
                 # Reversion exit must clear round-trip fees with margin (mirrors backtester
@@ -83,86 +95,102 @@ class SettlementAgent:
                 from src.quant.backtester import REVERT_MIN_ROI
                 is_trend = "TRENDING" in (regime or "").upper()
 
-                # AGGRESSIVE TRAILING PROFIT: Lock in gains more aggressively.
-                # Track peak ROI per symbol in redis; if current ROI has fallen from peak,
-                # exit to lock in profit. More aggressive than before for better capital growth.
+                # HARD STOP LOSS: Exit immediately if loss exceeds threshold
+                # This is the primary defense against large losses
+                hard_stop = roi <= sl_threshold
+                
+                # DYNAMIC STOP: Tighten stops as loss increases
+                # If loss > 1%, tighten stop to 1.5%
+                # If loss > 2%, tighten stop to 2%
+                # This prevents losses from growing beyond controlled levels
+                dynamic_sl = False
+                if roi < -0.01:  # Loss > 1%
+                    dynamic_sl = roi <= max(sl_threshold, -0.015)  # Tighten to 1.5%
+                if roi < -0.02:  # Loss > 2%
+                    dynamic_sl = roi <= max(sl_threshold, -0.02)  # Tighten to 2%
+                
+                # TRAILING STOP: Lock in gains as price moves in our favor
                 peak_key = f"peak_roi:{exchange_id}:{symbol}"
                 peak_roi = float(self.redis.get(peak_key) or 0)
                 if roi > peak_roi:
                     self.redis.set(peak_key, roi, ex=14400)  # 4h TTL
                     peak_roi = roi
                 
-                # Aggressive trailing: exit if ROI drops 20% from peak (was 30%)
-                # This captures more profit and reduces average loss
-                trailing_exit = (roi > 0.003) and (peak_roi > 0.003) and (roi < peak_roi * 0.8)
+                # Aggressive trailing: exit if ROI drops 15% from peak (was 20%)
+                trailing_exit = (roi > 0.003) and (peak_roi > 0.003) and (roi < peak_roi * 0.85)
                 
-                # Additional: lock in profit if ROI > 5% and drops 10% from peak
-                high_profit_exit = (roi > 0.05) and (peak_roi > 0.05) and (roi < peak_roi * 0.9)
+                # High profit lock: exit if ROI > 4% and drops 10% from peak
+                high_profit_exit = (roi > 0.04) and (peak_roi > 0.04) and (roi < peak_roi * 0.9)
+                
+                # BREAKEVEN STOP: Move stop to breakeven when ROI > 2%
+                breakeven_stop = (roi > 0.02) and (peak_roi > 0.02) and (roi < 0.005)  # Near breakeven
 
                 reverted = (not is_trend) and (roi > REVERT_MIN_ROI) and (
                     (side == "LONG" and comp <= 0.5) or (side == "SHORT" and comp >= 0.5)
                 )
 
-                # MARKET TREND-BASED EXITS (NEW LOGIC)
-                # 1. Regime change exit: exit when regime becomes unfavorable
+                # MARKET REGIME-BASED EXITS
                 regime_unfavorable = False
                 if side == "LONG" and "HIGH_VOL" in (regime or "").upper():
-                    regime_unfavorable = True  # LONG in high vol = risky
+                    regime_unfavorable = True
                 elif side == "SHORT" and "TRENDING" in (regime or "").upper():
-                    regime_unfavorable = True  # SHORT in uptrend = risky
+                    regime_unfavorable = True
 
-                # 2. Momentum fade exit: exit when composite drops significantly
-                momentum_fading = (roi > 0.02) and (comp < 0.35)  # In profit but signal weak
+                # MOMENTUM EXIT: Exit when signal weakens
+                momentum_fading = (roi > 0.01) and (comp < 0.35)
 
-                # 3. Time-based exit: exit if held too long without progress (4 hours)
+                # TIME-BASED EXIT: Cut stale positions
                 import time
                 position_age_key = f"position_age:{exchange_id}:{symbol}"
                 position_age = float(self.redis.get(position_age_key) or 0)
                 if position_age == 0:
-                    self.redis.set(position_age_key, time.time(), ex=86400)  # 24h TTL
+                    self.redis.set(position_age_key, time.time(), ex=86400)
                     position_age = time.time()
                 held_hours = (time.time() - position_age) / 3600
-                stale_position = (held_hours > 4) and (roi < 0.05)  # Held 4h+ with <5% gain
+                stale_position = (held_hours > 3) and (roi < 0.03)  # 3h with <3% = stale
 
                 log.info(f"[SETTLEMENT] {exchange_id} {symbol} {side} | ROI: {roi*100:.2f}% | Peak: {peak_roi*100:.2f}% | TP: {tp_threshold*100:.2f}% | SL: {sl_threshold*100:.2f}% | comp: {comp:.2f} | regime: {regime} | held: {held_hours:.1f}h")
 
-                # Action Logic
+                # PRIORITY ORDER: Hard stop > Dynamic stop > Profit locks > Trailing > Other exits
                 decision = None
                 order_type = "MARKET"
-                if roi >= tp_threshold:
+                if hard_stop:
+                    log.info(f"!!! HARD STOP LOSS for {symbol} on {exchange_id} (ROI={roi*100:.2f}%). Cutting loss IMMEDIATELY.")
+                    decision = "SELL" if side == "LONG" else "BUY"
+                    order_type = "MARKET"
+                elif dynamic_sl:
+                    log.info(f"!!! DYNAMIC STOP for {symbol} on {exchange_id} (ROI={roi*100:.2f}%). Tightening stop.")
+                    decision = "SELL" if side == "LONG" else "BUY"
+                    order_type = "MARKET"
+                elif roi >= tp_threshold:
                     log.info(f"$$$ PROFIT TARGET HIT for {symbol} on {exchange_id}. Booking Profit.")
                     decision = "SELL" if side == "LONG" else "BUY"
                     order_type = "MARKET"
-                elif roi <= sl_threshold:
-                    log.info(f"!!! STOP LOSS HIT for {symbol} on {exchange_id}. Cutting Loss.")
-                    decision = "SELL" if side == "LONG" else "BUY"
-                    order_type = "MARKET" # Use market order to guarantee immediate exit on SL
                 elif high_profit_exit:
-                    # High profit lock: ROI > 5% and dropping from peak
                     log.info(f"~~~ HIGH PROFIT LOCK for {symbol} on {exchange_id} (peak={peak_roi*100:.2f}%, now={roi*100:.2f}%). Locking in strong profit.")
                     decision = "SELL" if side == "LONG" else "BUY"
                     order_type = "MARKET"
+                elif breakeven_stop:
+                    log.info(f"~~~ BREAKEVEN STOP for {symbol} on {exchange_id} (peak={peak_roi*100:.2f}%, now={roi*100:.2f}%). Protecting capital.")
+                    decision = "SELL" if side == "LONG" else "BUY"
+                    order_type = "MARKET"
                 elif trailing_exit:
-                    log.info(f"~~~ TRAILING EXIT for {symbol} on {exchange_id} (ROI={roi*100:.2f}% from peak={peak_roi*100:.2f}%). Locking profit.")
+                    log.info(f"~~~ TRAILING EXIT for {symbol} on {exchange_id} (peak={peak_roi*100:.2f}%, now={roi*100:.2f}%). Locking profit.")
                     decision = "SELL" if side == "LONG" else "BUY"
                     order_type = "MARKET"
                 elif reverted and roi > 0:
-                    # Signal reverted to mean while in profit: book the reversion (the validated edge).
                     log.info(f"~~~ REVERSION EXIT for {symbol} on {exchange_id} (comp={comp:.2f}). Booking reversion profit.")
                     decision = "SELL" if side == "LONG" else "BUY"
                     order_type = "MARKET"
                 elif regime_unfavorable and roi > 0:
-                    # Market regime became unfavorable while in profit
                     log.info(f"~~~ REGIME EXIT for {symbol} on {exchange_id} (regime={regime}). Booking profit before regime change impact.")
                     decision = "SELL" if side == "LONG" else "BUY"
                     order_type = "MARKET"
                 elif momentum_fading:
-                    # Signal momentum fading while in profit
                     log.info(f"~~~ MOMENTUM EXIT for {symbol} on {exchange_id} (comp={comp:.2f}). Booking profit before momentum dies.")
                     decision = "SELL" if side == "LONG" else "BUY"
                     order_type = "MARKET"
                 elif stale_position:
-                    # Position held too long without progress
                     log.info(f"~~~ STALE EXIT for {symbol} on {exchange_id} (held={held_hours:.1f}h, ROI={roi*100:.2f}%). Cutting stale position.")
                     decision = "SELL" if side == "LONG" else "BUY"
                     order_type = "MARKET"
@@ -193,6 +221,19 @@ class SettlementAgent:
                     if res and res.get("status") == "OK":
                         log.info(f"SETTLEMENT: Logging outcome for {symbol} on {exchange_id} with ROI {roi*100:.2f}%")
                         self.db.log_trade_outcome(symbol, exchange_id, roi)
+                        
+                        # Record in learning module for future reference
+                        learning_module.record_trade_outcome(
+                            symbol=symbol,
+                            exchange=exchange_id,
+                            side=side,
+                            entry_price=avg_price,
+                            exit_price=current_price,
+                            roi=roi,
+                            regime=regime,
+                            comp_score=comp,
+                            holding_time_hours=held_hours
+                        )
 
         except Exception as e:
             log.error(f"Settlement Cycle Error: {e}")

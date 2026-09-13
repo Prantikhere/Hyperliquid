@@ -81,14 +81,16 @@ class RegimeEngine:
 
             regime = self.detect_regime(prices)
             if "HIGH_VOL" in regime:
-                sl = max(0.010, min(0.035, atr * 1.5))  # much tighter stop in high vol
+                sl = max(0.008, min(0.025, atr * 1.2))  # Even tighter stop in high vol
+            elif "MEAN_REVERTING" in regime:
+                sl = max(0.006, min(0.020, atr * 1.0))  # Tighter for mean reversion
             else:
-                sl = max(0.008, min(0.025, atr * 1.2))  # much tighter stop for better R:R
+                sl = max(0.008, min(0.025, atr * 1.2))  # Default tight stop
 
-            # Payoff ratio: 5:1 in all regimes. Aggressive profit targeting.
-            # This ensures positive expectancy even with 40% hit rate.
-            # Avg Win will be 5x Avg Loss = better capital growth.
-            tp = sl * 5.0
+            # Payoff ratio: 6:1 in all regimes. Very aggressive profit targeting.
+            # This ensures positive expectancy even with 35% hit rate.
+            # Avg Win will be 6x Avg Loss = strong capital growth.
+            tp = sl * 6.0
 
             return float(tp), -float(sl)
         except Exception as e:
