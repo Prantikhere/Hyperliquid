@@ -2,6 +2,7 @@ import xgboost as xgb
 import numpy as np
 import pandas as pd
 from src.utils.logger import log
+from src.quant.rnn_predictor import rnn_predictor
 
 def _roi_to_confidence(raw_roi):
     """Convert raw ROI prediction (continuous, e.g. -0.05 to +0.10) to a
@@ -43,9 +44,10 @@ class EnsembleMetaLearner:
             log.warning("No pre-trained meta-learner found. Using heuristic weights.")
             self.is_trained = False
 
-    def predict_confidence(self, features):
+    def predict_confidence(self, features, prices=None):
         """
         features: {mean_reversion, momentum, order_flow, trend, llm_signal}
+        prices: Recent price history for RNN prediction (optional)
         Returns: meta_confidence (0 to 1).
         """
         if not self.is_trained:
@@ -63,7 +65,28 @@ class EnsembleMetaLearner:
                 quant_align = ((1.0 - momentum) + (1.0 - mean_reversion) + (1.0 - order_flow)) / 3.0
             else:
                 quant_align = 0.5
+            
+            # Add RNN prediction if prices available
+            rnn_weight = 0.15  # 15% weight for RNN
+            if prices is not None and len(prices) > 30:
+                rnn_result = rnn_predictor.predict(prices)
+                rnn_signal = rnn_result['prediction']
+                rnn_confidence = rnn_result['confidence']
                 
+                # Combine with heuristic
+                base_confidence = (llm_val * 0.7) + (quant_align * 0.3)
+                
+                # RNN adds or subtracts based on its prediction
+                if rnn_result['signal'] == 'LONG':
+                    confidence = base_confidence * (1 + rnn_weight * rnn_confidence)
+                elif rnn_result['signal'] == 'SHORT':
+                    confidence = base_confidence * (1 - rnn_weight * rnn_confidence)
+                else:
+                    confidence = base_confidence
+                
+                log.debug(f"[META_LEARNER] RNN: signal={rnn_result['signal']}, confidence={rnn_confidence:.2f}")
+                return min(max(confidence, 0), 1)
+            
             return (llm_val * 0.7) + (quant_align * 0.3)
 
         try:
@@ -73,9 +96,27 @@ class EnsembleMetaLearner:
                 df = pd.DataFrame([features])[df_cols]
                 dmatrix = xgb.DMatrix(df)
                 raw_roi = float(self.model.predict(dmatrix)[0])
-                confidence = _roi_to_confidence(raw_roi)
-                log.debug(f"[META_LEARNER] raw_roi={raw_roi*100:.3f}% -> confidence={confidence:.4f}")
-                return confidence
+                base_confidence = _roi_to_confidence(raw_roi)
+                
+                # Add RNN prediction if prices available
+                rnn_weight = 0.15
+                if prices is not None and len(prices) > 30:
+                    rnn_result = rnn_predictor.predict(prices)
+                    rnn_signal = rnn_result['prediction']
+                    rnn_confidence = rnn_result['confidence']
+                    
+                    if rnn_result['signal'] == 'LONG':
+                        confidence = base_confidence * (1 + rnn_weight * rnn_confidence)
+                    elif rnn_result['signal'] == 'SHORT':
+                        confidence = base_confidence * (1 - rnn_weight * rnn_confidence)
+                    else:
+                        confidence = base_confidence
+                    
+                    log.debug(f"[META_LEARNER] raw_roi={raw_roi*100:.3f}% -> confidence={base_confidence:.4f}, RNN: {rnn_result['signal']}")
+                    return min(max(confidence, 0), 1)
+                
+                log.debug(f"[META_LEARNER] raw_roi={raw_roi*100:.3f}% -> confidence={base_confidence:.4f}")
+                return base_confidence
             else:
                 # Legacy model: binary classification with Platt scaling
                 df_cols = ['mean_reversion', 'momentum', 'order_flow', 'llm_signal']

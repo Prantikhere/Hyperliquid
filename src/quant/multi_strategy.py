@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from src.utils.logger import log
+from src.quant.rnn_predictor import rnn_predictor
 
 class StrategyEnsemble:
     """
@@ -12,7 +13,7 @@ class StrategyEnsemble:
 
     def get_signals(self, prices, book=None):
         if len(prices) < 20:
-            return {"mean_reversion": 0.5, "momentum": 0.5, "order_flow": 0.5, "trend": 0.5}
+            return {"mean_reversion": 0.5, "momentum": 0.5, "order_flow": 0.5, "trend": 0.5, "rnn": 0.5}
 
         df = pd.Series(prices)
         
@@ -49,11 +50,19 @@ class StrategyEnsemble:
                 rel = (ema_fast - ema_slow) / ema_slow
                 trend_signal = float(1.0 / (1.0 + np.exp(-50.0 * rel)))  # 2% gap -> ~0.73
 
+        # 5. RNN Signal (Neural network price prediction)
+        rnn_signal = 0.5
+        if len(prices) > 30:
+            rnn_result = rnn_predictor.predict(prices)
+            rnn_signal = rnn_result['prediction']
+            log.debug(f"[RNN] Signal: {rnn_result['signal']}, Confidence: {rnn_result['confidence']:.2f}")
+
         return {
             "mean_reversion": float(mr_signal),
             "momentum": float(mom_signal),
             "order_flow": float(of_signal),
-            "trend": float(trend_signal)
+            "trend": float(trend_signal),
+            "rnn": float(rnn_signal)
         }
 
     def composite_score(self, signals, regime="NEUTRAL"):
@@ -64,11 +73,14 @@ class StrategyEnsemble:
         strategy family with a positive out-of-sample edge, so it is over-weighted in
         mean-reverting regimes. Trend-following is NOT a validated edge, so in trending
         regimes conviction is deliberately compressed toward neutral (stand-aside bias).
+        
+        RNN signal is added as additional confirmation layer.
         """
         mr = signals.get("mean_reversion", 0.5)
         mom = signals.get("momentum", 0.5)
         of = signals.get("order_flow", 0.5)
         trend = signals.get("trend", 0.5)
+        rnn = signals.get("rnn", 0.5)
         r = (regime or "NEUTRAL").upper()
 
         # Order-flow is only meaningful when a live order book was supplied to get_signals.
@@ -80,26 +92,26 @@ class StrategyEnsemble:
         if "MEAN_REVERTING" in r:
             # Validated edge dominates. RSI is FADED here (high RSI = overbought = sell),
             # so it confirms reversion instead of fighting it.
-            w_mr, w_of, w_mom = 0.60, 0.25, 0.15
+            w_mr, w_of, w_mom, w_rnn = 0.55, 0.20, 0.15, 0.10
             mom = 1.0 - mom
             if not of_live:
-                w_mr, w_of, w_mom = 0.80, 0.0, 0.20
-            score = (w_mr * mr) + (w_of * of) + (w_mom * mom)
+                w_mr, w_of, w_mom, w_rnn = 0.70, 0.0, 0.20, 0.10
+            score = (w_mr * mr) + (w_of * of) + (w_mom * mom) + (w_rnn * rnn)
         elif "TRENDING" in r:
             # Trend-following sleeve: go WITH the trend. The EMA trend signal dominates and
             # momentum (RSI) is NOT faded -- both point the same way as the move. No conviction
             # compression here: in a real trend we WANT to cross the entry threshold and ride.
             # Mean reversion is nearly ignored (fading a strong trend is the loss source).
-            w_tr, w_mom, w_of = 0.65, 0.25, 0.10
+            w_tr, w_mom, w_of, w_rnn = 0.60, 0.20, 0.10, 0.10
             if not of_live:
-                w_tr, w_mom, w_of = 0.72, 0.28, 0.0
-            score = (w_tr * trend) + (w_mom * mom) + (w_of * of)
+                w_tr, w_mom, w_of, w_rnn = 0.65, 0.25, 0.0, 0.10
+            score = (w_tr * trend) + (w_mom * mom) + (w_of * of) + (w_rnn * rnn)
         else:  # NEUTRAL: also fade RSI, mean reversion is the house edge
-            w_mr, w_of, w_mom = 0.45, 0.30, 0.25
+            w_mr, w_of, w_mom, w_rnn = 0.40, 0.25, 0.25, 0.10
             mom = 1.0 - mom
             if not of_live:
-                w_mr, w_of, w_mom = 0.64, 0.0, 0.36
-            score = (w_mr * mr) + (w_of * of) + (w_mom * mom)
+                w_mr, w_of, w_mom, w_rnn = 0.55, 0.0, 0.35, 0.10
+            score = (w_mr * mr) + (w_of * of) + (w_mom * mom) + (w_rnn * rnn)
 
         return float(score)
 
