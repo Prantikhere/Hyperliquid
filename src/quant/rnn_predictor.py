@@ -286,24 +286,29 @@ class RNNTradePredictor:
             return {"prediction": 0.5, "confidence": 0, "signal": "NEUTRAL"}
         
         try:
-            # Prepare features
-            features = self._prepare_features(prices)
-            if features is None:
+            # Prepare features for multiple time points to create a sequence
+            features_list = []
+            for i in range(max(0, len(prices) - 50), len(prices)):
+                feat = self._prepare_features(prices[:i+1])
+                if feat is not None:
+                    features_list.append(feat)
+            
+            if len(features_list) < self.sequence_length:
                 return {"prediction": 0.5, "confidence": 0, "signal": "NEUTRAL"}
+            
+            # Convert to numpy array
+            features_array = np.array(features_list)
             
             # Normalize
             if self.scaler_mean is not None and self.scaler_std is not None:
-                features_normalized = (features - self.scaler_mean) / self.scaler_std
+                features_normalized = (features_array - self.scaler_mean) / self.scaler_std
             else:
                 return {"prediction": 0.5, "confidence": 0, "signal": "NEUTRAL"}
             
             # Create sequence (use last sequence_length points)
-            if len(features_normalized) >= self.sequence_length:
-                seq = features_normalized[-self.sequence_length:]
-            else:
-                seq = features_normalized
+            seq = features_normalized[-self.sequence_length:]
             
-            # Reshape for model
+            # Reshape for model: (1, sequence_length, features)
             X = torch.FloatTensor(seq).unsqueeze(0)
             
             # Predict
@@ -350,7 +355,7 @@ class RNNTradePredictor:
         """Load model from disk."""
         try:
             if os.path.exists(self.model_path):
-                checkpoint = torch.load(self.model_path)
+                checkpoint = torch.load(self.model_path, weights_only=False)
                 self.model = PricePredictorRNN()
                 self.model.load_state_dict(checkpoint['model_state_dict'])
                 self.scaler_mean = checkpoint['scaler_mean']
