@@ -222,12 +222,14 @@ class RNNTradePredictor:
             X = self._create_sequences(features_normalized)
             
             # Create labels (1 if price went up, 0 if down)
+            # Labels correspond to the price at the END of each sequence
             y = []
-            for i in range(self.sequence_length, len(features)):
+            for i in range(self.sequence_length, len(price_data)):
                 # Next period return
-                next_return = (price_data[i+1] - price_data[i]) / price_data[i] if i+1 < len(price_data) else 0
+                next_return = (price_data[i] - price_data[i-1]) / price_data[i-1] if i > 0 else 0
                 y.append(1 if next_return > 0 else 0)
             
+            # Ensure y has same length as X
             y = np.array(y[:len(X)])
             
             # Convert to tensors
