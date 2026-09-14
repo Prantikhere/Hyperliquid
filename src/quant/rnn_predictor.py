@@ -80,6 +80,8 @@ class RNNTradePredictor:
         self.scaler_std = None
         self.sequence_length = 20  # Look back 20 periods
         self.min_confidence = 0.55  # Minimum confidence to trade
+        self.last_train_time = 0  # Timestamp of last training
+        self.train_interval = 3600  # Retrain every hour
         
         # Load model if exists
         self._load_model()
@@ -157,6 +159,32 @@ class RNNTradePredictor:
             seq = feature_matrix[i:i + self.sequence_length]
             sequences.append(seq)
         return np.array(sequences)
+    
+    def auto_train(self, price_data):
+        """
+        Automatically train RNN if enough data and time has passed.
+        Called from strategy ensemble to ensure RNN stays trained.
+        """
+        import time
+        
+        # Check if enough data
+        if len(price_data) < 100:
+            return False
+        
+        # Check if enough time has passed since last training
+        current_time = time.time()
+        if current_time - self.last_train_time < self.train_interval:
+            return False
+        
+        # Train the model
+        log.info(f"[RNN] Auto-training on {len(price_data)} price points...")
+        success = self.train(price_data, epochs=30, learning_rate=0.001)
+        
+        if success:
+            self.last_train_time = current_time
+            log.info("[RNN] Auto-training complete")
+        
+        return success
     
     def train(self, price_data, epochs=50, learning_rate=0.001):
         """
@@ -247,6 +275,11 @@ class RNNTradePredictor:
         Returns:
             dict with 'prediction' (0-1), 'confidence', 'signal' (LONG/SHORT/NEUTRAL)
         """
+        # Auto-train if model doesn't exist and enough data
+        if self.model is None and len(prices) >= 100:
+            log.info("[RNN] Model not found, attempting auto-training...")
+            self.auto_train(prices)
+        
         if self.model is None:
             return {"prediction": 0.5, "confidence": 0, "signal": "NEUTRAL"}
         
