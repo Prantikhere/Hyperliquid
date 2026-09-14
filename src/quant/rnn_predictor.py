@@ -299,9 +299,13 @@ class RNNTradePredictor:
             # Convert to numpy array
             features_array = np.array(features_list)
             
-            # Normalize
+            # Normalize features using training stats
             if self.scaler_mean is not None and self.scaler_std is not None:
-                features_normalized = (features_array - self.scaler_mean) / self.scaler_std
+                # Ensure features_array has correct shape for normalization
+                if features_array.shape[1] == len(self.scaler_mean):
+                    features_normalized = (features_array - self.scaler_mean) / self.scaler_std
+                else:
+                    return {"prediction": 0.5, "confidence": 0, "signal": "NEUTRAL"}
             else:
                 return {"prediction": 0.5, "confidence": 0, "signal": "NEUTRAL"}
             
