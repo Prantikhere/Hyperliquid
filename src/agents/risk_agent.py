@@ -29,6 +29,7 @@ class RiskAgent:
                 'options': {'defaultType': 'swap'},
             })
             exchange.set_sandbox_mode(True)
+            exchange.walletAddress = primary_addr
 
             loop = asyncio.get_event_loop()
             balance = loop.run_until_complete(exchange.fetch_balance())
