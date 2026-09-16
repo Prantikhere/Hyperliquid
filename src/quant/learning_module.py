@@ -16,10 +16,10 @@ class LearningModule:
     def __init__(self):
         self.learning_file = "data/learning_outcomes.jsonl"
         self.calibration_file = "data/calibration_ledger.jsonl"
-        self.failure_patterns = self._load_failure_patterns()
-        self.historical_data = self._load_historical_data()
         self.banned_symbols = set()  # Symbols with catastrophic losses
         self.symbol_stats = {}  # Per-symbol win/loss stats
+        self.failure_patterns = self._load_failure_patterns()
+        self.historical_data = self._load_historical_data()
     
     def _load_historical_data(self):
         """Load historical trade data from calibration ledger for learning."""
