@@ -15,8 +15,16 @@ class RiskAgent:
             import nest_asyncio
             nest_asyncio.apply()
             import ccxt.async_support as ccxt
+            import os
+            from dotenv import load_dotenv
+            load_dotenv()
+            
+            hl_key = os.getenv("HL_PRIVATE_KEY", "")
+            primary_addr = os.getenv("HL_WALLET_ADDRESS", "")
+            
             exchange = ccxt.hyperliquid({
-                'apiKey': None,
+                'privateKey': hl_key,
+                'walletAddress': primary_addr,
                 'enableRateLimit': True,
                 'options': {'defaultType': 'swap'},
             })
@@ -34,7 +42,7 @@ class RiskAgent:
 
             usage_pct = (margin_used / account_value * 100) if account_value > 0 else 100.0
 
-            log.info(f"[RISK_AGENT] Margin check: account=\${account_value:.2f} used=\${margin_used:.2f} free=\${free_margin:.2f} usage={usage_pct:.1f}%")
+            log.info(f"[RISK_AGENT] Margin check: account=${account_value:.2f} used=${margin_used:.2f} free=${free_margin:.2f} usage={usage_pct:.1f}%")
 
             return usage_pct < self.max_margin_usage_pct, free_margin, usage_pct
         except Exception as e:
