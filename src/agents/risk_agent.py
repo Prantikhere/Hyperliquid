@@ -12,19 +12,43 @@ class RiskAgent:
     def _check_margin_available(self):
         """Check if margin usage is below threshold. Returns (ok, free_margin, usage_pct)."""
         try:
-            client = MultiExchangeClient()
-            balance = asyncio.get_event_loop().run_until_complete(client.hl.fetch_balance())
+            import ccxt.async_support as ccxt
+            exchange = ccxt.hyperliquid({
+                'apiKey': None,
+                'enableRateLimit': True,
+                'options': {'defaultType': 'swap'},
+            })
+            exchange.set_sandbox_mode(True)
+
+            loop = None
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+            try:
+                balance = loop.run_until_complete(exchange.fetch_balance())
+            finally:
+                try:
+                    loop.close()
+                except Exception:
+                    pass
+
             info = balance.get('info', {})
             margin = info.get('marginSummary', {})
-            
+
             account_value = float(margin.get('accountValue', 0))
             margin_used = float(margin.get('totalMarginUsed', 0))
             free_margin = float(balance.get('free', {}).get('USDC', 0))
-            
+
             usage_pct = (margin_used / account_value * 100) if account_value > 0 else 100.0
-            
+
             log.info(f"[RISK_AGENT] Margin check: account=\${account_value:.2f} used=\${margin_used:.2f} free=\${free_margin:.2f} usage={usage_pct:.1f}%")
-            
+
             return usage_pct < self.max_margin_usage_pct, free_margin, usage_pct
         except Exception as e:
             log.error(f"[RISK_AGENT] Margin check failed: {e}")
