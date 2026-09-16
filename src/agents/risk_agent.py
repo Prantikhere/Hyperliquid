@@ -12,6 +12,8 @@ class RiskAgent:
     def _check_margin_available(self):
         """Check if margin usage is below threshold. Returns (ok, free_margin, usage_pct)."""
         try:
+            import nest_asyncio
+            nest_asyncio.apply()
             import ccxt.async_support as ccxt
             exchange = ccxt.hyperliquid({
                 'apiKey': None,
@@ -20,23 +22,8 @@ class RiskAgent:
             })
             exchange.set_sandbox_mode(True)
 
-            loop = None
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-
-            try:
-                balance = loop.run_until_complete(exchange.fetch_balance())
-            finally:
-                try:
-                    loop.close()
-                except Exception:
-                    pass
+            loop = asyncio.get_event_loop()
+            balance = loop.run_until_complete(exchange.fetch_balance())
 
             info = balance.get('info', {})
             margin = info.get('marginSummary', {})
