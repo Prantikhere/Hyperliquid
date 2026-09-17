@@ -8,7 +8,8 @@ class MultiExchangeClient:
         self.bingx = ccxt.bingx({
             'apiKey': os.getenv("BINGX_API_KEY"),
             'secret': os.getenv("BINGX_SECRET_KEY"),
-            'options': {'defaultType': 'swap'}
+            'options': {'defaultType': 'swap'},
+            'timeout': 30000,
         })
         
         # 2. Hyperliquid API Agent Integration.
@@ -22,7 +23,8 @@ class MultiExchangeClient:
             'options': {
                 'defaultType': 'swap',
                 'slippage': 0.05
-            }
+            },
+            'timeout': 30000,
         })
         self.hl.set_sandbox_mode(True)
         self.hl.walletAddress = self.primary_addr

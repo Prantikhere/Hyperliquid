@@ -1,5 +1,4 @@
 import numpy as np
-import asyncio
 from src.execution.risk import RiskManager
 from src.execution.multi_client import MultiExchangeClient
 from src.utils.logger import log
@@ -12,9 +11,7 @@ class RiskAgent:
     def _check_margin_available(self):
         """Check if margin usage is below threshold. Returns (ok, free_margin, usage_pct)."""
         try:
-            import nest_asyncio
-            nest_asyncio.apply()
-            import ccxt.async_support as ccxt
+            import ccxt
             import os
             from dotenv import load_dotenv
             load_dotenv()
@@ -27,12 +24,12 @@ class RiskAgent:
                 'walletAddress': primary_addr,
                 'enableRateLimit': True,
                 'options': {'defaultType': 'swap'},
+                'timeout': 30000,
             })
             exchange.set_sandbox_mode(True)
             exchange.walletAddress = primary_addr
 
-            loop = asyncio.get_event_loop()
-            balance = loop.run_until_complete(exchange.fetch_balance())
+            balance = exchange.fetch_balance()
 
             info = balance.get('info', {})
             margin = info.get('marginSummary', {})
