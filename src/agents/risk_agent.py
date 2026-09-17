@@ -138,9 +138,11 @@ class RiskAgent:
 
             # Kelly-based position sizing
             position_usd = self.risk_manager.calculate_position_size(confidence, current_price, leverage=leverage)
+            log.debug(f"[RISK_DEBUG] {symbol}: kelly_position=${position_usd:.2f}, confidence={confidence:.2f}, leverage={leverage:.1f}")
 
             # Apply regime scale factor
             position_usd = position_usd * scale_factor
+            log.debug(f"[RISK_DEBUG] {symbol}: after_scale=${position_usd:.2f}, scale_factor={scale_factor:.2f}")
 
             # SESSION LOSS GUARD: Reduce position sizing when daily losses are high
             import time as _time
@@ -160,13 +162,15 @@ class RiskAgent:
             # Floor at 0.75 to fit HL testnet margin limits while clearing $10 minimum
             sortino_multiplier = float(np.clip(sortino, 0.75, 2.0))
             position_usd = position_usd * sortino_multiplier
+            log.debug(f"[RISK_DEBUG] {symbol}: after_sortino=${position_usd:.2f}, sortino={sortino:.2f}, multiplier={sortino_multiplier:.2f}")
 
             if position_usd <= 0:
                 return {"approved": False, "reason": f"Position size 0 (scale={scale_factor:.2f}, sortino={sortino_multiplier:.2f})"}
 
             # Enforce minimum notional for HL testnet AFTER all scaling
+            # Add 10% buffer to account for HL quantity truncation and price movement
             if position_usd < 10.0:
-                position_usd = 10.0
+                position_usd = 11.0  # $11 buffer above $10 minimum
 
             # Hard cap: never risk more than 25% of bankroll on a single position
             max_position = self.risk_manager.bankroll * 0.25

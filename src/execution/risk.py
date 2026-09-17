@@ -28,38 +28,29 @@ class RiskManager:
         return min(fraction, 0.10)
 
     def calculate_position_size(self, confidence, price, leverage=5.0):
-        """Calculate position size using Kelly criterion with testnet-aware capping.
-        
-        PRODUCTION FIX: Added account-size-based scaling and hard cap enforcement.
-        Position size is now:
-        1. Kelly-optimal fraction of bankroll
-        2. Scaled by confidence (higher confidence = larger position)
-        3. Capped at max_position_usd (default $8 for testnet)
-        4. Capped at max_risk_per_trade_pct of bankroll (6% for testnet to clear $10 min)
-        """
+        """Calculate position size using Kelly criterion with testnet-aware capping."""
+        from src.utils.logger import log
         if confidence < 0.4:
+            log.debug(f"[RISK_CALC] Early return: confidence={confidence:.2f} < 0.4")
             return 0
 
         kelly_risk = self.calculate_kelly_fraction(confidence)
-        base_risk_pct = 0.06  # 6% base risk for testnet (needs to clear $10 minimum)
+        base_risk_pct = 0.06
         risk_pct = max(kelly_risk, base_risk_pct)
 
-        # Calculate position size based on bankroll
         position_usd = self.bankroll * risk_pct * leverage
         
-        # Scale up for high confidence trades
         if confidence > 0.7:
-            position_usd *= 1.2  # 20% boost for high confidence
+            position_usd *= 1.2
         
-        # HARD CAP: Never exceed max_position_usd (testnet: $8, production: adjustable)
         position_usd = min(position_usd, self.max_position_usd)
-        
-        # ACCOUNT SIZE CAP: Never risk more than max_risk_per_trade_pct of bankroll
         max_risk_usd = self.bankroll * self.max_risk_per_trade_pct
         position_usd = min(position_usd, max_risk_usd)
-        
-        # MINIMUM ORDER SIZE: HL testnet requires $10 minimum
+
+        log.debug(f"[RISK_CALC] bankroll=${self.bankroll:.2f}, risk_pct={risk_pct:.4f}, leverage={leverage:.1f}, position=${position_usd:.2f}, max_pos=${self.max_position_usd:.2f}, max_risk=${max_risk_usd:.2f}")
+
         if position_usd < 10.0:
+            log.debug(f"[RISK_CALC] Position ${position_usd:.2f} < $10 minimum, returning 0")
             return 0
         
         return position_usd
