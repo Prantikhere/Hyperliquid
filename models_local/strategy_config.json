@@ -1,7 +1,7 @@
 {
   "buy_threshold": 0.55,
   "sell_threshold": 0.45,
-  "min_confidence": 0.45,
+  "min_confidence": 0.4,
   "live_safe": true,
   "symbol_whitelist": [
     "ADA/USDT",

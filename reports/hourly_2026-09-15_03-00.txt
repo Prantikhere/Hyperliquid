@@ -1,0 +1,26 @@
+==========================================
+ HOURLY ASSESSMENT REPORT
+ Tue Sep 15 03:00:02 AM IST 2026
+==========================================
+
+=== 1. SERVICES ===
+  PID=8016 START=Sep08 CMD=src/data/multi_streamer.py
+  PID=8027 START=Sep08 CMD=src.execution.hl_perp_ls
+  PID=8034 START=Sep08 CMD=src.execution.pairs_arb_executor
+  PID=2015313 START=Sep14 CMD=src/execution/hl_executor.py
+
+=== 2. EQUITY / AUM ===
+
+=== 3. OPEN POSITIONS ===
+
+=== 4. TRADE ACTIVITY ===
+  Executions: 0
+  Risk Rejections: 0
+
+=== 5. PERFORMANCE ===
+
+=== 6. LAST DECISION ===
+
+==========================================
+ Report: /home/prantik/Downloads/Personal/TradingBingx/reports/hourly_2026-09-15_03-00.txt
+==========================================

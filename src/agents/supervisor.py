@@ -74,6 +74,16 @@ class SupervisorAgent:
                 
                 if equity > 0:
                     self.risk_agent.risk_manager.update_bankroll(equity)
+                    # TRACK PEAK VALUE FOR DRAWDOWN CALCULATION
+                    try:
+                        peak_key = "account_peak_value"
+                        current_key = "account_current_value"
+                        current_peak = float(self.redis.get(peak_key) or 0)
+                        if equity > current_peak:
+                            self.redis.set(peak_key, equity, ex=2592000)  # 30 day TTL
+                        self.redis.set(current_key, equity, ex=2592000)
+                    except Exception:
+                        pass
                     log.info(f"[{exchange_id}] Dynamic bankroll updated to: ${equity:.2f}")
         except Exception as e:
             log.warning(f"Failed to update dynamic bankroll: {e}")
@@ -274,6 +284,9 @@ class SupervisorAgent:
                 log.debug(f"[SHADOW-MEMORY] store skipped: {e}")
             return rejected
 
+        # PRODUCTION MONITORING: Track P&L and alert on critical events
+        self._track_production_metrics(equity, risk_evaluation, symbol)
+
         risk_evaluation["target_exchange"] = exchange_id
         risk_evaluation["metadata"] = {
             "quant_signals": quant_signals,
@@ -301,3 +314,41 @@ class SupervisorAgent:
         except Exception as e:
             log.debug(f"[SHADOW-MEMORY] store skipped: {e}")
         return {"action": signal["action"], "status": result['status']}
+
+    def _track_production_metrics(self, equity, risk_evaluation, symbol):
+        """Track production metrics and alert on critical events."""
+        try:
+            import redis
+            import time
+            
+            r = redis.Redis(host=os.getenv('REDIS_HOST', 'localhost'), port=6379, decode_responses=True)
+            
+            # Store equity for drawdown tracking
+            peak_key = "account_peak_value"
+            current_key = "account_current_value"
+            peak_value = float(r.get(peak_key) or 0)
+            
+            if equity > peak_value:
+                r.set(peak_key, equity, ex=2592000)  # 30 day TTL
+            r.set(current_key, equity, ex=2592000)
+            
+            # Calculate drawdown
+            drawdown_pct = 0
+            if peak_value > 0:
+                drawdown_pct = ((peak_value - equity) / peak_value) * 100
+            
+            # Alert thresholds
+            if drawdown_pct >= 10:
+                log.warning(f"[PRODUCTION ALERT] Drawdown: {drawdown_pct:.1f}% (threshold: 10%)")
+            if drawdown_pct >= 15:
+                log.critical(f"[PRODUCTION CRITICAL] Max drawdown breached: {drawdown_pct:.1f}% - KILL SWITCH ACTIVE")
+            
+            # Track daily P&L
+            daily_key = f"daily_pnl:{int(time.time() / 86400)}"
+            daily_pnl = float(r.get(daily_key) or 0)
+            
+            # Log production status
+            log.info(f"[PRODUCTION] Equity: ${equity:.2f} | Drawdown: {drawdown_pct:.1f}% | Daily P&L: ${daily_pnl:.2f}")
+            
+        except Exception as e:
+            log.debug(f"Production metrics tracking error: {e}")

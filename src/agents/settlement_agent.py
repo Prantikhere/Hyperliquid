@@ -99,15 +99,12 @@ class SettlementAgent:
                 # This is the primary defense against large losses
                 hard_stop = roi <= sl_threshold
                 
-                # DYNAMIC STOP: Tighten stops as loss increases
-                # If loss > 1%, tighten stop to 1.5%
-                # If loss > 2%, tighten stop to 2%
-                # This prevents losses from growing beyond controlled levels
+                # DYNAMIC STOP: Only tighten if loss is extreme (>3%)
+                # Previous logic was too aggressive, cutting positions at -1.5%
+                # which prevented winners from running
                 dynamic_sl = False
-                if roi < -0.01:  # Loss > 1%
-                    dynamic_sl = roi <= max(sl_threshold, -0.015)  # Tighten to 1.5%
-                if roi < -0.02:  # Loss > 2%
-                    dynamic_sl = roi <= max(sl_threshold, -0.02)  # Tighten to 2%
+                if roi < -0.03:  # Loss > 3% only
+                    dynamic_sl = roi <= max(sl_threshold, -0.03)  # Tighten to 3%
                 
                 # TRAILING STOP: Lock in gains as price moves in our favor
                 peak_key = f"peak_roi:{exchange_id}:{symbol}"
@@ -116,14 +113,15 @@ class SettlementAgent:
                     self.redis.set(peak_key, roi, ex=14400)  # 4h TTL
                     peak_roi = roi
                 
-                # Aggressive trailing: exit if ROI drops 15% from peak (was 20%)
-                trailing_exit = (roi > 0.003) and (peak_roi > 0.003) and (roi < peak_roi * 0.85)
+                # Trailing exit: only if ROI > 1% and drops 25% from peak
+                # Previous 15% was too aggressive, cutting profits at +0.3%
+                trailing_exit = (roi > 0.01) and (peak_roi > 0.01) and (roi < peak_roi * 0.75)
                 
-                # High profit lock: exit if ROI > 4% and drops 10% from peak
-                high_profit_exit = (roi > 0.04) and (peak_roi > 0.04) and (roi < peak_roi * 0.9)
+                # High profit lock: exit if ROI > 5% and drops 15% from peak
+                high_profit_exit = (roi > 0.05) and (peak_roi > 0.05) and (roi < peak_roi * 0.85)
                 
-                # BREAKEVEN STOP: Move stop to breakeven when ROI > 2%
-                breakeven_stop = (roi > 0.02) and (peak_roi > 0.02) and (roi < 0.005)  # Near breakeven
+                # BREAKEVEN STOP: Only at very high profit (4%+) to let winners run
+                breakeven_stop = (roi > 0.04) and (peak_roi > 0.04) and (roi < 0.01)
 
                 reverted = (not is_trend) and (roi > REVERT_MIN_ROI) and (
                     (side == "LONG" and comp <= 0.5) or (side == "SHORT" and comp >= 0.5)

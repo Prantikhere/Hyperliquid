@@ -65,11 +65,23 @@ class ExecutionAgent:
             # Update concurrent position count in Redis
             try:
                 import redis as _redis
+                import time as _time
                 _r = _redis.Redis(host=os.getenv('REDIS_HOST', 'localhost'), port=6379, decode_responses=True)
                 if side == "BUY" and not reduce_only:
                     _r.incr("open_positions_count")
+                    # Track symbol-specific position count
+                    symbol_positions_key = f"symbol_positions:{exchange_id}:{symbol}"
+                    _r.incr(symbol_positions_key)
+                    # Track daily trade count for this symbol
+                    daily_trades_key = f"daily_trades:{exchange_id}:{symbol}:{int(_time.time() / 86400)}"
+                    _r.incr(daily_trades_key, ex=172800)  # 48h TTL
                 elif side == "SELL" and reduce_only:
                     _r.decr("open_positions_count")
+                    # Decrement symbol-specific position count
+                    symbol_positions_key = f"symbol_positions:{exchange_id}:{symbol}"
+                    current_symbol_pos = int(_r.get(symbol_positions_key) or 0)
+                    if current_symbol_pos > 0:
+                        _r.decr(symbol_positions_key)
                 # Ensure count doesn't go below 0
                 current_count = int(_r.get("open_positions_count") or 0)
                 if current_count < 0:

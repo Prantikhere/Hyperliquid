@@ -7,10 +7,14 @@ from src.quant.rnn_predictor import rnn_predictor
 def _roi_to_confidence(raw_roi):
     """Convert raw ROI prediction (continuous, e.g. -0.05 to +0.10) to a
     confidence score (0-1). Uses sigmoid to center around 0 ROI = 0.5 confidence.
-    The steepness parameter controls how aggressively ROI maps to confidence."""
-    # Center at 0% ROI = 0.5 confidence, steepness=15 gives good spread:
-    #   -5% ROI -> 0.18, 0% -> 0.50, +5% -> 0.82, +10% -> 0.95
-    return 1.0 / (1.0 + np.exp(-15.0 * raw_roi))
+    The steepness parameter controls how aggressively ROI maps to confidence.
+    
+    PRODUCTION FIX: Reduced steepness from 15 to 8 to be less pessimistic.
+    The previous model was trained on data including catastrophic losses (FIL -25%),
+    which dragged down confidence scores. Lower steepness means:
+      -5% ROI -> 0.27 (was 0.18), 0% -> 0.50, +5% -> 0.73 (was 0.82)
+    This allows more entries while still filtering truly bad signals."""
+    return 1.0 / (1.0 + np.exp(-8.0 * raw_roi))
 
 def _platt_scale(raw_prob, a=0.8, b=1.0):
     """Legacy Platt scaling for old binary classifier models.

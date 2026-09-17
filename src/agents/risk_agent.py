@@ -8,6 +8,11 @@ class RiskAgent:
         self.risk_manager = RiskManager(db=db)
         self.max_margin_usage_pct = 80.0  # Maximum margin usage percentage
         self.max_concurrent_positions = 4  # Maximum open positions across all symbols
+        self.max_drawdown_pct = 15.0  # Maximum drawdown from peak before kill switch
+        self.max_single_loss_pct = 3.0  # Maximum loss per trade (3%)
+        self.min_risk_reward = 1.5  # Minimum risk/reward ratio (1:1.5)
+        self.max_positions_per_symbol = 1  # Maximum 1 position per symbol (no averaging)
+        self.max_daily_trades_per_symbol = 6  # Maximum 6 trades per symbol per day
 
     def _check_margin_available(self):
         """Check if margin usage is below threshold. Returns (ok, free_margin, usage_pct)."""
@@ -78,6 +83,21 @@ class RiskAgent:
             if not self.risk_manager.check_risk_limits():
                 return {"approved": False, "reason": "Global risk limits exceeded"}
 
+            # MAX DRAWDOWN KILL SWITCH: Halt trading if drawdown exceeds threshold
+            try:
+                import redis as _redis
+                _r = _redis.Redis(host=os.getenv('REDIS_HOST', 'localhost'), port=6379, decode_responses=True)
+                peak_key = "account_peak_value"
+                current_key = "account_current_value"
+                peak_value = float(_r.get(peak_key) or 0)
+                current_value = float(_r.get(current_key) or 0)
+                if peak_value > 0 and current_value > 0:
+                    drawdown_pct = ((peak_value - current_value) / peak_value) * 100
+                    if drawdown_pct >= self.max_drawdown_pct:
+                        return {"approved": False, "reason": f"MAX DRAWDOWN KILL SWITCH: {drawdown_pct:.1f}% drawdown (limit: {self.max_drawdown_pct}%)"}
+            except Exception:
+                pass  # Redis unavailable, skip check
+
             # Check margin availability before sizing
             margin_ok, free_margin, usage_pct = self._check_margin_available()
             if not margin_ok:
@@ -91,6 +111,26 @@ class RiskAgent:
                 open_count = int(_r.get(positions_key) or 0)
                 if open_count >= self.max_concurrent_positions:
                     return {"approved": False, "reason": f"Too many open positions: {open_count} (max: {self.max_concurrent_positions})"}
+            except Exception:
+                pass  # Redis unavailable, skip check
+
+            # SYMBOL DIVERSIFICATION GUARD: Limit positions per symbol and daily trades per symbol
+            try:
+                import redis as _redis
+                import time as _time
+                _r = _redis.Redis(host=os.getenv('REDIS_HOST', 'localhost'), port=6379, decode_responses=True)
+                
+                # Check if already have a position in this symbol
+                symbol_positions_key = f"symbol_positions:{exchange_id}:{symbol}"
+                symbol_positions = int(_r.get(symbol_positions_key) or 0)
+                if symbol_positions >= self.max_positions_per_symbol:
+                    return {"approved": False, "reason": f"Already have {symbol_positions} position(s) in {symbol} (max: {self.max_positions_per_symbol})"}
+                
+                # Check daily trade count for this symbol
+                daily_trades_key = f"daily_trades:{exchange_id}:{symbol}:{int(_time.time() / 86400)}"
+                daily_trades = int(_r.get(daily_trades_key) or 0)
+                if daily_trades >= self.max_daily_trades_per_symbol:
+                    return {"approved": False, "reason": f"Too many daily trades for {symbol}: {daily_trades} (max: {self.max_daily_trades_per_symbol})"}
             except Exception:
                 pass  # Redis unavailable, skip check
 
