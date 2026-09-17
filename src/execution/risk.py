@@ -5,7 +5,7 @@ class RiskManager:
     def __init__(self, bankroll=None, db=None):
         self.db = db
         self.bankroll = float(os.getenv("BANKROLL", bankroll or 467.06))
-        self.max_risk_per_trade_pct = float(os.getenv("MAX_RISK_PER_TRADE", 0.03))
+        self.max_risk_per_trade_pct = float(os.getenv("MAX_RISK_PER_TRADE", 0.06))  # 6% for testnet
         self.max_leverage = float(os.getenv("MAX_LEVERAGE", 5.0))
         self.daily_loss = 0.0
         self.max_daily_loss_pct = 5.0
@@ -13,8 +13,8 @@ class RiskManager:
         self.kelly_win_rate = float(os.getenv("KELLY_WIN_RATE", 0.55))
         self.kelly_win_loss_ratio = float(os.getenv("KELLY_WIN_LOSS_RATIO", 3.0))  # 3:1 for better growth
         self.kelly_fraction = float(os.getenv("KELLY_FRACTION", 0.20))  # 20% Kelly for faster growth
-        # Testnet hard cap: max position size in USD (increased for growth)
-        self.max_position_usd = float(os.getenv("MAX_POSITION_USD", 8.0))
+        # Testnet hard cap: max position size in USD (increased to clear $10 minimum)
+        self.max_position_usd = float(os.getenv("MAX_POSITION_USD", 12.0))
 
     def calculate_kelly_fraction(self, confidence):
         """Calculate Kelly-optimal fraction of bankroll to risk.
@@ -35,13 +35,13 @@ class RiskManager:
         1. Kelly-optimal fraction of bankroll
         2. Scaled by confidence (higher confidence = larger position)
         3. Capped at max_position_usd (default $8 for testnet)
-        4. Capped at max_risk_per_trade_pct of bankroll (3% default)
+        4. Capped at max_risk_per_trade_pct of bankroll (6% for testnet to clear $10 min)
         """
         if confidence < 0.4:
             return 0
 
         kelly_risk = self.calculate_kelly_fraction(confidence)
-        base_risk_pct = 0.03  # 3% base risk for growth
+        base_risk_pct = 0.06  # 6% base risk for testnet (needs to clear $10 minimum)
         risk_pct = max(kelly_risk, base_risk_pct)
 
         # Calculate position size based on bankroll
