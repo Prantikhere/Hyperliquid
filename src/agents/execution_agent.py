@@ -27,8 +27,8 @@ class ExecutionAgent:
         """Execute trade and log decision metadata for explainability."""
         symbol = trade_params['symbol']
         side = trade_params['side']
-        quantity = trade_params['quantity']
-        price = trade_params.get('price', 0)
+        quantity = float(trade_params['quantity'])  # Ensure native Python type
+        price = float(trade_params.get('price', 0))  # Ensure native Python type
         exchange_id = trade_params.get('target_exchange', 'bingx')
         # Lineage metadata
         metadata = trade_params.get('metadata', {})
@@ -61,6 +61,22 @@ class ExecutionAgent:
             self.db.insert_trade(symbol, exchange_id, side, price, quantity, "LIVE_OK", metadata)
             # Update position locally as an immediate cache; reconciliation agent will verify this.
             self.db.update_position(symbol, exchange_id, price, quantity if side == "BUY" else -quantity)
+            
+            # Update concurrent position count in Redis
+            try:
+                import redis as _redis
+                _r = _redis.Redis(host=os.getenv('REDIS_HOST', 'localhost'), port=6379, decode_responses=True)
+                if side == "BUY" and not reduce_only:
+                    _r.incr("open_positions_count")
+                elif side == "SELL" and reduce_only:
+                    _r.decr("open_positions_count")
+                # Ensure count doesn't go below 0
+                current_count = int(_r.get("open_positions_count") or 0)
+                if current_count < 0:
+                    _r.set("open_positions_count", 0)
+            except Exception:
+                pass  # Redis unavailable, skip count update
+            
             return {"status": "OK", "details": res}
         
         # Paper/Simulated: Log to stdout but NOT to database per user "no fictitious activity" policy.

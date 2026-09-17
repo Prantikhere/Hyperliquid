@@ -109,8 +109,10 @@ class DatabaseManager:
         )
         """
         try:
+            # Ensure native Python type for JSON serialization
+            roi_clean = float(roi) if roi is not None else 0.0
             with self.conn.cursor() as cur:
-                cur.execute(query, (json.dumps(roi), symbol, exchange_id))
+                cur.execute(query, (json.dumps(roi_clean), symbol, exchange_id))
         except Exception as e:
             log.error(f"Error logging trade outcome: {e}")
 

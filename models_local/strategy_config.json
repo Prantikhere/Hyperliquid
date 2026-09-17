@@ -9,7 +9,11 @@
     "ARB/USDT",
     "OP/USDT",
     "LDO/USDT",
-    "ETC/USDT"
+    "ETC/USDT",
+    "AAVE/USDT",
+    "PENDLE/USDT",
+    "ONDO/USDT",
+    "HBAR/USDT"
   ],
   "_backtest": {
     "buy_threshold": 0.55,

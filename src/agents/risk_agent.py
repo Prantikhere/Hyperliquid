@@ -7,6 +7,7 @@ class RiskAgent:
     def __init__(self, db=None):
         self.risk_manager = RiskManager(db=db)
         self.max_margin_usage_pct = 80.0  # Maximum margin usage percentage
+        self.max_concurrent_positions = 4  # Maximum open positions across all symbols
 
     def _check_margin_available(self):
         """Check if margin usage is below threshold. Returns (ok, free_margin, usage_pct)."""
@@ -81,6 +82,17 @@ class RiskAgent:
             margin_ok, free_margin, usage_pct = self._check_margin_available()
             if not margin_ok:
                 return {"approved": False, "reason": f"Margin usage too high: {usage_pct:.1f}% (max: {self.max_margin_usage_pct}%)"}
+
+            # CONCURRENT POSITION GUARD: Limit number of open positions to prevent overexposure
+            try:
+                import redis as _redis
+                _r = _redis.Redis(host=os.getenv('REDIS_HOST', 'localhost'), port=6379, decode_responses=True)
+                positions_key = "open_positions_count"
+                open_count = int(_r.get(positions_key) or 0)
+                if open_count >= self.max_concurrent_positions:
+                    return {"approved": False, "reason": f"Too many open positions: {open_count} (max: {self.max_concurrent_positions})"}
+            except Exception:
+                pass  # Redis unavailable, skip check
 
             # Kelly-based position sizing
             position_usd = self.risk_manager.calculate_position_size(confidence, current_price, leverage=leverage)
