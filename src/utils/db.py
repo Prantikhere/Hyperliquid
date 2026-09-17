@@ -71,10 +71,29 @@ class DatabaseManager:
         VALUES (NOW(), %s, %s, %s, %s, %s, %s, %s)
         """
         try:
+            # Convert numpy types to native Python for JSON serialization
+            clean_metadata = self._clean_for_json(metadata) if metadata else None
             with self.conn.cursor() as cur:
-                cur.execute(query, (symbol, exchange_id, side, price, quantity, status, json.dumps(metadata) if metadata else None))
+                cur.execute(query, (symbol, exchange_id, side, price, quantity, status, json.dumps(clean_metadata) if clean_metadata else None))
         except Exception as e:
             log.error(f"Error inserting trade: {e}")
+
+    def _clean_for_json(self, obj):
+        """Recursively convert numpy types to native Python for JSON/PostgreSQL."""
+        import numpy as _np
+        if isinstance(obj, dict):
+            return {k: self._clean_for_json(v) for k, v in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [self._clean_for_json(v) for v in obj]
+        elif isinstance(obj, _np.integer):
+            return int(obj)
+        elif isinstance(obj, _np.floating):
+            return float(obj)
+        elif isinstance(obj, _np.bool_):
+            return bool(obj)
+        elif isinstance(obj, _np.ndarray):
+            return obj.tolist()
+        return obj
 
     def log_trade_outcome(self, symbol, exchange_id, roi):
         """Record the outcome of the most recent trade for this position for training."""
@@ -98,6 +117,9 @@ class DatabaseManager:
     def update_position(self, symbol, exchange_id, price, quantity):
         self.ensure_connection()
         try:
+            # Ensure native Python types for PostgreSQL
+            price = float(price) if price is not None else 0.0
+            quantity = float(quantity) if quantity is not None else 0.0
             with self.conn.cursor() as cur:
                 cur.execute("SELECT quantity, avg_price FROM positions WHERE symbol = %s AND exchange_id = %s", (symbol, exchange_id))
                 row = cur.fetchone()

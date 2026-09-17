@@ -140,6 +140,8 @@ class SettlementAgent:
                 momentum_fading = (roi > 0.01) and (comp < 0.35)
 
                 # TIME-BASED EXIT: Cut stale positions
+                # FIX: Increased from 3h to 8h. Only exit if actually losing (<0%), not just <3%.
+                # The old 3h threshold caused a churn loop: enter -> stale exit at -0.05% -> re-enter.
                 import time
                 position_age_key = f"position_age:{exchange_id}:{symbol}"
                 position_age = float(self.redis.get(position_age_key) or 0)
@@ -147,7 +149,7 @@ class SettlementAgent:
                     self.redis.set(position_age_key, time.time(), ex=86400)
                     position_age = time.time()
                 held_hours = (time.time() - position_age) / 3600
-                stale_position = (held_hours > 3) and (roi < 0.03)  # 3h with <3% = stale
+                stale_position = (held_hours > 8) and (roi < 0)  # 8h with negative ROI = stale
 
                 log.info(f"[SETTLEMENT] {exchange_id} {symbol} {side} | ROI: {roi*100:.2f}% | Peak: {peak_roi*100:.2f}% | TP: {tp_threshold*100:.2f}% | SL: {sl_threshold*100:.2f}% | comp: {comp:.2f} | regime: {regime} | held: {held_hours:.1f}h")
 
@@ -198,6 +200,18 @@ class SettlementAgent:
                 if decision:
                     mapped_symbol = self.execution_agent.multi_client._get_mapped_symbol(exchange_id, symbol)
                     
+                    # CHURN GUARD: Record exit time and cooldown for this symbol
+                    # Prevents the system from immediately re-entering the same position
+                    cooldown_key = f"entry_cooldown:{exchange_id}:{symbol}"
+                    self.redis.set(cooldown_key, time.time(), ex=3600)  # 1h cooldown
+                    # Track exit count for churn detection
+                    exit_count_key = f"exit_count:{exchange_id}:{symbol}:{int(time.time() / 86400)}"
+                    current_exit_count = int(self.redis.get(exit_count_key) or 0)
+                    self.redis.set(exit_count_key, current_exit_count + 1, ex=172800)  # 48h TTL
+                    if current_exit_count + 1 >= 5:
+                        log.warning(f"[CHURN_GUARD] {symbol} on {exchange_id}: {current_exit_count + 1} exits today. Increasing cooldown to 4h.")
+                        self.redis.set(cooldown_key, time.time(), ex=14400)  # Extend to 4h
+                    
                     # Instead of skipping, cancel any existing stale open orders for this symbol
                     for order in open_orders:
                         if order.get('symbol') == mapped_symbol:
@@ -221,6 +235,19 @@ class SettlementAgent:
                     if res and res.get("status") == "OK":
                         log.info(f"SETTLEMENT: Logging outcome for {symbol} on {exchange_id} with ROI {roi*100:.2f}%")
                         self.db.log_trade_outcome(symbol, exchange_id, roi)
+                        
+                        # SESSION LOSS TRACKING: Track cumulative daily realized PnL
+                        import time as _time
+                        session_key = f"session_realized_pnl:{int(_time.time() / 86400)}"
+                        current_session_pnl = float(self.redis.get(session_key) or 0)
+                        # Each exit: compute dollar PnL from ROI * position size (approximate)
+                        # Use the position value from the DB
+                        pos_value = abs(pos.get('quantity', 0)) * avg_price if avg_price > 0 else 0
+                        dollar_pnl = roi * pos_value
+                        new_session_pnl = current_session_pnl + dollar_pnl
+                        self.redis.set(session_key, new_session_pnl, ex=172800)  # 48h TTL
+                        if new_session_pnl < 0:
+                            log.warning(f"[SESSION_GUARD] Daily realized PnL: ${new_session_pnl:.2f} (limit: -$5.00)")
                         
                         # Record in learning module for future reference
                         learning_module.record_trade_outcome(

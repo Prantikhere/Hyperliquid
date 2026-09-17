@@ -88,6 +88,20 @@ class RiskAgent:
             # Apply regime scale factor
             position_usd = position_usd * scale_factor
 
+            # SESSION LOSS GUARD: Reduce position sizing when daily losses are high
+            import time as _time
+            import redis
+            try:
+                _r = redis.Redis(host=os.getenv('REDIS_HOST', 'localhost'), port=6379, decode_responses=True)
+                session_key = f"session_realized_pnl:{int(_time.time() / 86400)}"
+                session_loss = float(_r.get(session_key) or 0)
+                if session_loss < -2.0:
+                    loss_multiplier = max(0.3, 1.0 + (session_loss / 10.0))  # Gradual reduction
+                    position_usd = position_usd * loss_multiplier
+                    log.warning(f"[SESSION_GUARD] Reducing position size by {100-loss_multiplier*100:.0f}% (daily PnL: ${session_loss:.2f})")
+            except Exception:
+                pass  # Redis unavailable, skip session guard
+
             # Apply Sortino risk-adjusted multiplier (0.75 to 2.0)
             # Floor at 0.75 to fit HL testnet margin limits while clearing $10 minimum
             sortino_multiplier = float(np.clip(sortino, 0.75, 2.0))

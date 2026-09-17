@@ -184,6 +184,34 @@ class SupervisorAgent:
 
         signal = {"action": det_action, "reason": f"Quant composite {composite:.2f} in {regime}"}
 
+        # CHURN GUARD: Check if this symbol is in cooldown after a recent exit
+        # Prevents the enter->stale exit->immediate re-enter loop
+        import time as _time
+        cooldown_key = f"entry_cooldown:{exchange_id}:{symbol}"
+        cooldown_until = self.redis.get(cooldown_key)
+        if cooldown_until:
+            remaining = float(cooldown_until) - _time.time()
+            if remaining > 0:
+                log.info(f"[CHURN_GUARD] {symbol} on {exchange_id}: in cooldown for {remaining:.0f}s more. Blocking entry.")
+                signal = {"action": "HOLD", "confidence": 0, "reason": f"Cooldown active ({remaining:.0f}s remaining)"}
+                return signal
+
+        # SESSION LOSS GUARD: Check if we've lost too much today
+        session_loss_key = f"session_realized_pnl:{_time.time() // 86400}"
+        session_loss = float(self.redis.get(session_loss_key) or 0)
+        if session_loss < -5.0:  # More than $5 lost today
+            log.warning(f"[SESSION_GUARD] Daily realized loss ${session_loss:.2f} exceeds $5 limit. Blocking new entries.")
+            signal = {"action": "HOLD", "confidence": 0, "reason": f"Session loss limit breached: ${session_loss:.2f}"}
+            return signal
+
+        # CHURN GUARD: Check exit count for this symbol today
+        exit_count_key = f"exit_count:{exchange_id}:{symbol}:{int(_time.time() / 86400)}"
+        exit_count = int(self.redis.get(exit_count_key) or 0)
+        if exit_count >= 4:
+            log.warning(f"[CHURN_GUARD] {symbol} on {exchange_id}: {exit_count} exits today. Blocking re-entry.")
+            signal = {"action": "HOLD", "confidence": 0, "reason": f"Churn limit breached ({exit_count} exits today)"}
+            return signal
+
         # 5. Meta-Learner Judge (sizes confidence around the quant action). NOTE: the feature key
         # "llm_signal" is a LEGACY column name the trained XGBoost model expects -- it is fed the
         # QUANT direction (quant_dir), NOT any LLM output. Renaming it would break the model's
@@ -258,6 +286,16 @@ class SupervisorAgent:
         
         log.info(f"[{exchange_id}] EXECUTING VERIFIED TRADE: {signal['action']} for {symbol}")
         result = await self.execution_agent.execute_trade(risk_evaluation)
+        
+        # Record entry time for stale exit tracking
+        if result.get("status") == "OK":
+            import time as _entry_time
+            self.redis.set(f"position_age:{exchange_id}:{symbol}", _entry_time.time(), ex=86400)
+            # Track entry count for churn detection
+            entry_count_key = f"entry_count:{exchange_id}:{symbol}:{int(_entry_time.time() / 86400)}"
+            current_entry_count = int(self.redis.get(entry_count_key) or 0)
+            self.redis.set(entry_count_key, current_entry_count + 1, ex=172800)
+        
         try:
             self.vector_memory.store_decision(symbol, mem_context, signal)
         except Exception as e:
