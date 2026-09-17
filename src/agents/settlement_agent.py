@@ -123,7 +123,7 @@ class SettlementAgent:
                 # BREAKEVEN STOP: Only at very high profit (4%+) to let winners run
                 breakeven_stop = (roi > 0.04) and (peak_roi > 0.04) and (roi < 0.01)
 
-                reverted = (not is_trend) and (roi > REVERT_MIN_ROI) and (
+                reverted = (not is_trend) and (roi > REVERT_MIN_ROI) and (roi > 0.005) and (held_hours > 0.5) and (
                     (side == "LONG" and comp <= 0.5) or (side == "SHORT" and comp >= 0.5)
                 )
 
