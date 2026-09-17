@@ -73,7 +73,9 @@ class RiskAgent:
                 elif "TRENDING" in regime_upper:
                     scale_factor = 0.5 if is_major else 0.25
                 else:
-                    scale_factor = 0.5 if is_major else 0.3
+                    # NEUTRAL regime: increased from 0.3 to 0.6 for altcoins to ensure
+                    # position size exceeds HL testnet $10 minimum
+                    scale_factor = 0.8 if is_major else 0.6
             else:
                 scale_factor = 1.0 if is_major else 0.5
 

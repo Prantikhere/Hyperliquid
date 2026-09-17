@@ -187,12 +187,15 @@ class SupervisorAgent:
             # Fires when regime confirms mean-reversion edge or neutral conditions — allows entries in sideways markets.
             # Lowered from 0.70 to 0.60 to allow more entries in mean-reverting regimes.
             det_action = "BUY"
+            log.debug(f"[ENTRY_DEBUG] {symbol}: Strong-signal BUY: composite={composite:.2f}, regime={regime}, symbol_ok={symbol_ok}")
         elif composite <= 0.40 and symbol_ok and ("MEAN_REVERTING" in regime.upper() or "NEUTRAL" in regime.upper()):
             # Strong-signal override: composite is decisively bearish in MEAN_REVERTING/NEUTRAL regime.
             # Lowered from 0.30 to 0.40 to allow more entries in mean-reverting regimes.
             det_action = "SELL"
+            log.debug(f"[ENTRY_DEBUG] {symbol}: Strong-signal SELL: composite={composite:.2f}, regime={regime}, symbol_ok={symbol_ok}")
         else:
             det_action = "HOLD"
+            log.debug(f"[ENTRY_DEBUG] {symbol}: HOLD: composite={composite:.2f}, regime={regime}, symbol_ok={symbol_ok}, buy_th={buy_th}, uptrend={uptrend}")
 
         signal = {"action": det_action, "reason": f"Quant composite {composite:.2f} in {regime}"}
 
@@ -258,6 +261,7 @@ class SupervisorAgent:
             log.debug(f"[SHADOW-MEMORY] recall skipped: {e}")
 
         min_conf = 0.40  # Must match min_conf_floor used in override logic
+        log.debug(f"[DECISION_DEBUG] {symbol}: det_action={det_action}, signal_action={signal.get('action')}, confidence={signal.get('confidence', 0):.2f}, composite={composite:.2f}")
         if signal["action"] == "HOLD" or signal["confidence"] < min_conf:
             log.info(f"[{exchange_id}] Decision: HOLD {symbol} ({signal['confidence']:.2f}) | composite={composite:.2f} | regime={regime}")
             try:
