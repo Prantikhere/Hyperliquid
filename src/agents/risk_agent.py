@@ -53,7 +53,7 @@ class RiskAgent:
             log.error(f"[RISK_AGENT] Margin check failed: {e}")
             return False, 0.0, 100.0
 
-    def evaluate_trade(self, symbol, side, confidence, current_price, regime=None, sortino=1.0):
+    def evaluate_trade(self, symbol, side, confidence, current_price, regime=None, sortino=1.0, exchange_id='hyperliquid'):
         """Evaluate if a trade is within risk limits and calculate position size
         using Kelly criterion with regime-aware and Sortino scaling."""
         try:
@@ -125,6 +125,7 @@ class RiskAgent:
                 # Check if already have a position in this symbol
                 symbol_positions_key = f"symbol_positions:{exchange_id}:{symbol}"
                 symbol_positions = int(_r.get(symbol_positions_key) or 0)
+                log.debug(f"[RISK_DEBUG] {symbol}: symbol_positions={symbol_positions}, max={self.max_positions_per_symbol}")
                 if symbol_positions >= self.max_positions_per_symbol:
                     return {"approved": False, "reason": f"Already have {symbol_positions} position(s) in {symbol} (max: {self.max_positions_per_symbol})"}
                 
@@ -133,8 +134,21 @@ class RiskAgent:
                 daily_trades = int(_r.get(daily_trades_key) or 0)
                 if daily_trades >= self.max_daily_trades_per_symbol:
                     return {"approved": False, "reason": f"Too many daily trades for {symbol}: {daily_trades} (max: {self.max_daily_trades_per_symbol})"}
-            except Exception:
-                pass  # Redis unavailable, skip check
+            except Exception as e:
+                log.warning(f"[RISK_DEBUG] Redis position check failed: {e}. Allowing trade (unsafe)")
+            
+            # SAFETY NET: Also check actual exchange positions directly
+            try:
+                import ccxt
+                exchange = ccxt.hyperliquid({'enableRateLimit': True, 'options': {'defaultType': 'swap'}})
+                exchange.load_markets()
+                positions = exchange.fetch_positions([symbol])
+                for pos in positions:
+                    if pos.get('contracts', 0) and float(pos['contracts']) > 0:
+                        log.warning(f"[RISK_DEBUG] SAFETY NET: {symbol} already has active position on HL: {pos['side']} {pos['contracts']}")
+                        return {"approved": False, "reason": f"Active HL position exists for {symbol}: {pos['side']}"}
+            except Exception as e:
+                log.debug(f"[RISK_DEBUG] HL position check failed: {e}")
 
             # Kelly-based position sizing
             position_usd = self.risk_manager.calculate_position_size(confidence, current_price, leverage=leverage)

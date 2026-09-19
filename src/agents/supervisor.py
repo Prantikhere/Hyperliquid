@@ -305,7 +305,7 @@ class SupervisorAgent:
                 downside_deviation = _np.sqrt(_np.mean(downside_returns ** 2)) if len(downside_returns) > 0 else 1e-9
                 sortino = float(returns.mean() / downside_deviation) if downside_deviation > 0 else 1.0
 
-        risk_evaluation = self.risk_agent.evaluate_trade(symbol, signal["action"], signal["confidence"], float(price), regime=regime, sortino=sortino)
+        risk_evaluation = self.risk_agent.evaluate_trade(symbol, signal["action"], signal["confidence"], float(price), regime=regime, sortino=sortino, exchange_id=exchange_id)
         if not risk_evaluation.get("approved", False):
             log.warning(f"[{exchange_id}] Trade REJECTED by Risk Agent for {symbol}: {risk_evaluation.get('reason', 'Unknown reason')}")
             rejected = {"action": "HOLD", "confidence": signal["confidence"], "reason": risk_evaluation.get("reason")}
