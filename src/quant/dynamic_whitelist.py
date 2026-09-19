@@ -152,8 +152,15 @@ class DynamicWhitelist:
             result = self.db.execute_query(query)
             if result:
                 symbols = [row[0] for row in result]
-                # Filter to only USDT perps
-                return [s for s in symbols if s.endswith('/USDT') and not any(x in s for x in ['_PERP', 'DOWN', 'UP'])]
+                # Filter to only USDT perps and strip exchange prefix if present
+                filtered = []
+                for s in symbols:
+                    if s.endswith('/USDT') and not any(x in s for x in ['_PERP', 'DOWN', 'UP']):
+                        # Strip exchange prefix if present (e.g., "hyperliquid:NEAR/USDT" -> "NEAR/USDT")
+                        if ':' in s:
+                            s = s.split(':', 1)[1]
+                        filtered.append(s)
+                return filtered
             return []
         except Exception as e:
             log.error(f"[DYN_WHITELIST] Error fetching symbols: {e}")
