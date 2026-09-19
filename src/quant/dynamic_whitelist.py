@@ -46,7 +46,7 @@ class DynamicWhitelist:
     
     # Minimum requirements for inclusion
     MIN_VOLUME_USD = 1_000_000  # $1M daily volume minimum
-    MIN_PRICE_USD = 0.10  # Skip penny coins
+    MIN_PRICE_USD = 0.02  # Include low-price tokens like HBAR
     MAX_SPREAD_PCT = 0.5  # Max 0.5% spread
     
     def __init__(self, exchange_id='hyperliquid', top_n=8, update_interval_hours=4):
@@ -112,12 +112,17 @@ class DynamicWhitelist:
             
             # Score each symbol
             scores = {}
+            skipped = 0
             for symbol, data in market_data.items():
                 score = self._score_symbol(data)
                 if score is not None:
                     scores[symbol] = score
+                else:
+                    skipped += 1
             
+            log.info(f"[DYN_WHITELIST] Scored {len(scores)} symbols, skipped {skipped} (of {len(market_data)} with data)")
             if not scores:
+                log.warning(f"[DYN_WHITELIST] No symbols scored — market_data had {len(market_data)} entries")
                 return None
             
             # Sort by score and take top N
@@ -170,9 +175,13 @@ class DynamicWhitelist:
         """Fetch market data for scoring."""
         market_data = {}
         
+        # Get actual 24h volumes from exchange
+        volumes_24h = self._fetch_24h_volumes()
+        
         for symbol in symbols:
             try:
-                # Get price history from DB
+                # Query with exchange prefix (DB stores as "exchange:SYMBOL/USDT")
+                prefixed = f"{self.exchange_id}:{symbol}"
                 query = """
                     SELECT price, time 
                     FROM external_prices 
@@ -180,7 +189,7 @@ class DynamicWhitelist:
                     ORDER BY time DESC 
                     LIMIT 200
                 """
-                result = self.db.execute_query(query, (symbol,))
+                result = self.db.execute_query(query, (prefixed,))
                 
                 if not result or len(result) < 20:
                     continue
@@ -195,8 +204,8 @@ class DynamicWhitelist:
                     'prices': prices,
                 }
                 
-                # Volume (estimate from trade count if available)
-                data['volume_score'] = self._estimate_volume(symbol)
+                # Volume from exchange (24h quote volume)
+                data['volume_score'] = volumes_24h.get(symbol, 0)
                 
                 # Momentum (7d = ~336 bars at 30min)
                 if len(prices) >= 100:
@@ -214,21 +223,24 @@ class DynamicWhitelist:
                 market_data[symbol] = data
                 
             except Exception as e:
+                log.debug(f"[DYN_WHITELIST] {symbol} data fetch error: {e}")
                 continue
         
+        log.info(f"[DYN_WHITELIST] Fetched market data for {len(market_data)}/{len(symbols)} symbols")
         return market_data
     
     def _estimate_volume(self, symbol):
         """Estimate relative volume (0-1 scale)."""
         try:
             # Count recent trades as volume proxy
+            prefixed = f"{self.exchange_id}:{symbol}"
             query = """
                 SELECT COUNT(*) 
                 FROM system_trades 
                 WHERE symbol = %s 
                 AND time > NOW() - INTERVAL '24 hours'
             """
-            result = self.db.execute_query(query, (symbol,))
+            result = self.db.execute_query(query, (prefixed,))
             if result:
                 count = result[0][0]
                 # Normalize: 100+ trades = full score
@@ -237,10 +249,55 @@ class DynamicWhitelist:
         except:
             return 0.1
     
+    def _fetch_24h_volumes(self):
+        """Fetch actual 24h quote volume from exchange for all symbols."""
+        volumes = {}
+        try:
+            import ccxt
+            # Use hyperliquid public API
+            exchange = ccxt.hyperliquid({
+                'enableRateLimit': True,
+                'options': {'defaultType': 'swap'},
+            })
+            exchange.load_markets()
+            
+            # Fetch tickers for all symbols
+            tickers = exchange.fetch_tickers()
+            
+            # Extract volumes (quote volume in USDT)
+            max_vol = 0
+            for symbol, ticker in tickers.items():
+                if '/USDT' in symbol and 'USDC' not in symbol:
+                    vol = ticker.get('quoteVolume', 0) or 0
+                    if vol > max_vol:
+                        max_vol = vol
+            
+            # Normalize to 0-1 scale
+            if max_vol > 0:
+                for symbol, ticker in tickers.items():
+                    if '/USDT' in symbol and 'USDC' not in symbol:
+                        vol = ticker.get('quoteVolume', 0) or 0
+                        # Log scale for better distribution
+                        import math
+                        if vol > 0 and max_vol > 0:
+                            normalized = math.log10(vol + 1) / math.log10(max_vol + 1)
+                            volumes[symbol] = normalized
+                        else:
+                            volumes[symbol] = 0
+            
+            log.info(f"[DYN_WHITELIST] Fetched volumes for {len(volumes)} symbols from exchange")
+            return volumes
+            
+        except Exception as e:
+            log.warning(f"[DYN_WHITELIST] Failed to fetch 24h volumes: {e}")
+            # Fallback to DB trade counts
+            return {}
+    
     def _estimate_spread(self, symbol):
         """Estimate spread quality (0-1, higher = tighter spread)."""
         try:
             # Use recent price volatility as spread proxy
+            prefixed = f"{self.exchange_id}:{symbol}"
             query = """
                 SELECT price 
                 FROM external_prices 
@@ -248,7 +305,7 @@ class DynamicWhitelist:
                 ORDER BY time DESC 
                 LIMIT 10
             """
-            result = self.db.execute_query(query, (symbol,))
+            result = self.db.execute_query(query, (prefixed,))
             if result and len(result) >= 5:
                 prices = [float(row[0]) for row in result]
                 spread = (max(prices) - min(prices)) / np.mean(prices)
@@ -297,6 +354,7 @@ class DynamicWhitelist:
             
             # Apply minimum price filter
             if data['current_price'] < self.MIN_PRICE_USD:
+                log.debug(f"[DYN_WHITELIST] {data['symbol']} skipped: price ${data['current_price']:.4f} < ${self.MIN_PRICE_USD}")
                 return None
             
             return composite
