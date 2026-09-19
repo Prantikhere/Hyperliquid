@@ -3,6 +3,9 @@
   "sell_threshold": 0.45,
   "min_confidence": 0.5,
   "live_safe": true,
+  "use_dynamic_whitelist": true,
+  "dynamic_whitelist_top_n": 8,
+  "dynamic_whitelist_update_hours": 4,
   "symbol_whitelist": [
     "ARB/USDT",
     "OP/USDT",

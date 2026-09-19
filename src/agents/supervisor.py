@@ -60,6 +60,33 @@ class SupervisorAgent:
             log.warning("No strategy_config.json; using default thresholds.")
             return defaults
 
+    def _get_whitelist(self, exchange_id='hyperliquid'):
+        """Get whitelist using dynamic scoring with static fallback."""
+        # Check if dynamic whitelist is enabled
+        if not self.cfg.get('use_dynamic_whitelist', True):
+            log.debug("[DYN_WHITELIST] Dynamic whitelist disabled, using static")
+            return self.cfg.get("symbol_whitelist", [])
+        
+        try:
+            from src.quant.dynamic_whitelist import DynamicWhitelist
+            top_n = self.cfg.get('dynamic_whitelist_top_n', 8)
+            update_hours = self.cfg.get('dynamic_whitelist_update_hours', 4)
+            
+            dyn_wl = DynamicWhitelist(
+                exchange_id=exchange_id,
+                top_n=top_n,
+                update_interval_hours=update_hours
+            )
+            whitelist = dyn_wl.get_whitelist()
+            if whitelist:
+                log.debug(f"[DYN_WHITELIST] Active whitelist ({len(whitelist)} symbols): {whitelist}")
+                return whitelist
+        except Exception as e:
+            log.warning(f"[DYN_WHITELIST] Dynamic scoring failed: {e}, using static fallback")
+        
+        # Fallback to static whitelist from config
+        return self.cfg.get("symbol_whitelist", [])
+
     async def run_cycle(self, symbol, exchange_id="bingx"):
         log.info(f"--- [{exchange_id.upper()}] Full-Potential Cycle: {symbol} ---")
         
@@ -172,10 +199,9 @@ class SupervisorAgent:
         sma = float(_np.mean(price_list)) if price_list else float(price)
         uptrend = float(price) >= sma
 
-        # Per-symbol whitelist: only OPEN new positions on symbols the backtester validated
-        # (positive edge, beats hold). Empty whitelist -> trade nothing new. Non-whitelisted
-        # symbols are still monitored and their existing positions still exit via settlement.
-        whitelist = self.cfg.get("symbol_whitelist", [])
+        # Per-symbol whitelist: DYNAMIC scoring based on volume, momentum, volatility
+        # Falls back to static list if dynamic scoring fails
+        whitelist = self._get_whitelist(exchange_id)
         symbol_ok = (symbol in whitelist) if whitelist else False
 
         if composite > buy_th and uptrend and symbol_ok:
