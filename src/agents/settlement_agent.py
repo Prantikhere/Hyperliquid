@@ -181,7 +181,7 @@ class SettlementAgent:
                     log.info(f"~~~ REVERSION EXIT for {symbol} on {exchange_id} (comp={comp:.2f}). Booking reversion profit.")
                     decision = "SELL" if side == "LONG" else "BUY"
                     order_type = "MARKET"
-                elif regime_unfavorable and roi > 0:
+                elif regime_unfavorable and roi > 0.015:
                     log.info(f"~~~ REGIME EXIT for {symbol} on {exchange_id} (regime={regime}). Booking profit before regime change impact.")
                     decision = "SELL" if side == "LONG" else "BUY"
                     order_type = "MARKET"
