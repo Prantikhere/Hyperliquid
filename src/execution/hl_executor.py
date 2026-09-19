@@ -12,15 +12,24 @@ async def run_parallel():
     supervisor = SupervisorAgent()
     print("Init Done.")
 
-    # Curated liquid HL-testnet universe with strict wallet isolation:
-    # Excludes carry_executor majors (BTC, ETH, SOL), perp_ls altcoins
-    # (BNB, DOGE, AVAX, ADA, APT, ARB, OP, ATOM, NEAR, INJ), and
-    # pairs_arb_executor's ETC/FIL spread pair (same wallet, same book).
-    symbols = [
+    # Dynamic whitelist managed by DynamicWhitelist multi-factor scoring.
+    # Falls back to static list if dynamic scoring fails.
+    fallback_symbols = [
         "SUI/USDT", "TIA/USDT", "LDO/USDT", "AAVE/USDT", "DYDX/USDT",
         "MKR/USDT", "RENDER/USDT", "WLD/USDT",
         "TON/USDT", "POL/USDT", "ONDO/USDT", "PENDLE/USDT", "XLM/USDT", "HBAR/USDT"
     ]
+
+    def get_symbols():
+        try:
+            from src.quant.dynamic_whitelist import DynamicWhitelist
+            dyn = DynamicWhitelist(exchange_id='hyperliquid', top_n=8, update_interval_hours=4)
+            wl = dyn.get_whitelist()
+            if wl:
+                return wl
+        except Exception as e:
+            log.warning(f"Dynamic whitelist failed: {e}, using fallback")
+        return fallback_symbols
 
     print("Init Settlement...")
     # Monitor ALL positions for profit booking (not just HL executor's symbols)
@@ -35,6 +44,8 @@ async def run_parallel():
     async def trading_loop():
         while True:
             try:
+                symbols = get_symbols()
+                log.info(f"Trading {len(symbols)} symbols: {symbols}")
                 for symbol in symbols:
                     await supervisor.run_cycle(symbol, exchange_id="hyperliquid")
                     await asyncio.sleep(1) # Fast sweep
