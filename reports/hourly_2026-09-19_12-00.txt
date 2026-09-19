@@ -1,0 +1,36 @@
+==========================================
+ HOURLY ASSESSMENT REPORT
+ Sat Sep 19 12:00:02 PM IST 2026
+==========================================
+
+=== 1. SERVICES ===
+  PID=8016 START=Sep08 CMD=src/data/multi_streamer.py
+  PID=8027 START=Sep08 CMD=src.execution.hl_perp_ls
+  PID=8034 START=Sep08 CMD=src.execution.pairs_arb_executor
+  PID=3539593 START=10:08 CMD=src/execution/hl_executor.py
+
+=== 2. EQUITY / AUM ===
+  Account Value:    $184.48
+  Margin Used:      $86.86 (47.1%)
+  Free Margin:      $97.63
+  Starting Equity:  $195.16
+  Growth:           +$-10.68 (+-5.47%)
+
+=== 3. OPEN POSITIONS ===
+  INJ: 0.5 LONG, PnL=$+0.67
+  ETC: 21.1 LONG, PnL=$+19.80
+  Total PnL: $+20.47
+
+=== 4. TRADE ACTIVITY ===
+  Executions: 114
+  Risk Rejections: 0
+
+=== 5. PERFORMANCE ===
+  Current: \$184.48
+
+=== 6. LAST DECISION ===
+2026-09-19 11:58:12.555 | INFO     | src.agents.supervisor:run_cycle:291 - [hyperliquid] Decision: HOLD SUI/USDT (0.44) | composite=0.72 | regime=NEUTRAL
+
+==========================================
+ Report: /home/prantik/Downloads/Personal/TradingBingx/reports/hourly_2026-09-19_12-00.txt
+==========================================

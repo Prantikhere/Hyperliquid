@@ -1,3 +1,4 @@
+import os
 import numpy as np
 from src.execution.risk import RiskManager
 from src.execution.multi_client import MultiExchangeClient
@@ -140,7 +141,11 @@ class RiskAgent:
             # SAFETY NET: Also check actual exchange positions directly
             try:
                 import ccxt
-                exchange = ccxt.hyperliquid({'enableRateLimit': True, 'options': {'defaultType': 'swap'}})
+                exchange = ccxt.hyperliquid({
+                    'enableRateLimit': True,
+                    'options': {'defaultType': 'swap'},
+                    'walletAddress': '0x07dd93729632BEF8B3A522F8079efD483990aE34'
+                })
                 exchange.load_markets()
                 positions = exchange.fetch_positions([symbol])
                 for pos in positions:
