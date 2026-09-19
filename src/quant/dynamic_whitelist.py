@@ -125,6 +125,23 @@ class DynamicWhitelist:
                 log.warning(f"[DYN_WHITELIST] No symbols scored — market_data had {len(market_data)} entries")
                 return None
             
+            # Filter out churn-blocked symbols (4+ exits today)
+            try:
+                import time as _time
+                day_key = int(_time.time() / 86400)
+                churn_blocked = set()
+                for symbol in list(scores.keys()):
+                    exit_key = f"exit_count:{self.exchange_id}:{symbol}:{day_key}"
+                    exits = int(self.redis.get(exit_key) or 0)
+                    if exits >= 4:
+                        churn_blocked.add(symbol)
+                        del scores[symbol]
+                        log.debug(f"[DYN_WHITELIST] {symbol} excluded: {exits} exits today (churn-blocked)")
+                if churn_blocked:
+                    log.info(f"[DYN_WHITELIST] Excluded {len(churn_blocked)} churn-blocked symbols: {churn_blocked}")
+            except Exception as e:
+                log.debug(f"[DYN_WHITELIST] Churn filter skipped: {e}")
+            
             # Sort by score and take top N
             ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
             top_symbols = [symbol for symbol, score in ranked[:self.top_n]]
