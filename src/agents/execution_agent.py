@@ -67,7 +67,7 @@ class ExecutionAgent:
                 import redis as _redis
                 import time as _time
                 _r = _redis.Redis(host=os.getenv('REDIS_HOST', 'localhost'), port=6379, decode_responses=True)
-                if side == "BUY" and not reduce_only:
+                if not reduce_only:
                     _r.incr("open_positions_count")
                     # Track symbol-specific position count
                     symbol_positions_key = f"symbol_positions:{exchange_id}:{symbol}"
