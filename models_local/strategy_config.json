@@ -1,7 +1,7 @@
 {
   "buy_threshold": 0.55,
   "sell_threshold": 0.45,
-  "min_confidence": 0.4,
+  "min_confidence": 0.5,
   "live_safe": true,
   "symbol_whitelist": [
     "ARB/USDT",
@@ -9,7 +9,6 @@
     "ETC/USDT",
     "HBAR/USDT",
     "TIA/USDT",
-    "RENDER/USDT",
     "LDO/USDT",
     "AAVE/USDT",
     "PENDLE/USDT",

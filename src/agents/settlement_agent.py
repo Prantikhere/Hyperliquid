@@ -99,12 +99,11 @@ class SettlementAgent:
                 # This is the primary defense against large losses
                 hard_stop = roi <= sl_threshold
                 
-                # DYNAMIC STOP: Only tighten if loss is extreme (>3%)
-                # Previous logic was too aggressive, cutting positions at -1.5%
-                # which prevented winners from running
+                # DYNAMIC STOP: Tighten if loss exceeds 2%
+                # Previous 3% was too loose, allowing losses to grow to -0.42% avg
                 dynamic_sl = False
-                if roi < -0.03:  # Loss > 3% only
-                    dynamic_sl = roi <= max(sl_threshold, -0.03)  # Tighten to 3%
+                if roi < -0.02:  # Loss > 2% triggers dynamic stop
+                    dynamic_sl = roi <= max(sl_threshold, -0.02)  # Tighten to 2%
                 
                 # TRAILING STOP: Lock in gains as price moves in our favor
                 peak_key = f"peak_roi:{exchange_id}:{symbol}"
