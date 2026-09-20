@@ -225,11 +225,23 @@ class SettlementAgent:
                             except Exception as ex_cancel:
                                 log.error(f"Failed to cancel order {order.get('id')} on {exchange_id}: {ex_cancel}")
 
+                    # Fetch LIVE price from exchange for HL to avoid "Price too far from oracle" errors
+                    # Redis-cached price can deviate from HL's oracle price
+                    live_price = current_price
+                    if exchange_id == "hyperliquid":
+                        try:
+                            mapped_sym = self.execution_agent.multi_client._get_mapped_symbol(exchange_id, symbol)
+                            ticker = await self.execution_agent.multi_client.exchanges[exchange_id].fetch_ticker(mapped_sym)
+                            if ticker and ticker.get('last'):
+                                live_price = float(ticker['last'])
+                        except Exception as e_price:
+                            log.warning(f"[SETTLEMENT] Could not fetch live HL price for {symbol}: {e_price}, using cached {current_price}")
+
                     trade_params = {
                         "symbol": symbol,
                         "side": decision,
                         "quantity": abs(quantity),
-                        "price": current_price,
+                        "price": live_price,
                         "order_type": order_type,
                         "target_exchange": exchange_id,
                         "reduce_only": True,

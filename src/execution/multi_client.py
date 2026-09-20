@@ -72,10 +72,8 @@ class MultiExchangeClient:
                 params['slippage'] = 0.10  # 10% slippage tolerance for HL oracle price mismatch
             
             if order_type.upper() == "MARKET":
-                # FIX: Do NOT pass price for HL market orders — exchange determines execution price
-                # Passing a stale/different price causes "Price too far from oracle" rejections
-                effective_price = None if exchange_id == "hyperliquid" else price
-                return await exchange.create_order(mapped_symbol, 'market', ccxt_side, quantity, effective_price, params)
+                # HL requires price for market orders to calculate max slippage
+                return await exchange.create_order(mapped_symbol, 'market', ccxt_side, quantity, price, params)
             else:
                 return await exchange.create_order(mapped_symbol, 'limit', ccxt_side, quantity, price, params)
                 
