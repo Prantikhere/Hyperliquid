@@ -195,6 +195,13 @@ class SettlementAgent:
                     order_type = "MARKET"
 
                 if decision:
+                    # FAILED EXIT LIMITER: Stop retrying after 5 failures
+                    failed_exit_key = f"failed_exits:{exchange_id}:{symbol}"
+                    failed_count = int(self.redis.get(failed_exit_key) or 0)
+                    if failed_count >= 5:
+                        log.warning(f"[SETTLEMENT] {symbol} on {exchange_id}: {failed_count} failed exit attempts. Skipping to avoid infinite retry loop.")
+                        continue
+                    
                     mapped_symbol = self.execution_agent.multi_client._get_mapped_symbol(exchange_id, symbol)
                     
                     # CHURN GUARD: Record exit time and cooldown for this symbol
@@ -232,6 +239,16 @@ class SettlementAgent:
                     if res and res.get("status") == "OK":
                         log.info(f"SETTLEMENT: Logging outcome for {symbol} on {exchange_id} with ROI {roi*100:.2f}%")
                         self.db.log_trade_outcome(symbol, exchange_id, roi)
+                        
+                        # Reset failed exit counter on success
+                        failed_exit_key = f"failed_exits:{exchange_id}:{symbol}"
+                        self.redis.delete(failed_exit_key)
+                    else:
+                        # Increment failed exit counter
+                        failed_exit_key = f"failed_exits:{exchange_id}:{symbol}"
+                        new_count = int(self.redis.get(failed_exit_key) or 0) + 1
+                        self.redis.set(failed_exit_key, new_count, ex=3600)  # 1h TTL
+                        log.warning(f"[SETTLEMENT] {symbol} on {exchange_id}: exit order failed ({new_count}/5 retries)")
                         
                         # SESSION LOSS TRACKING: Track cumulative daily realized PnL
                         import time as _time

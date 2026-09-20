@@ -1,0 +1,40 @@
+==========================================
+ HOURLY ASSESSMENT REPORT
+ Sat Sep 19 11:00:02 PM IST 2026
+==========================================
+
+=== 1. SERVICES ===
+  PID=8016 START=Sep08 CMD=src/data/multi_streamer.py
+  PID=8027 START=Sep08 CMD=src.execution.hl_perp_ls
+  PID=8034 START=Sep08 CMD=src.execution.pairs_arb_executor
+  PID=3676424 START=20:20 CMD=src/execution/hl_executor.py
+
+=== 2. EQUITY / AUM ===
+  Account Value:    $190.43
+  Margin Used:      $99.05 (52.0%)
+  Free Margin:      $91.38
+  Starting Equity:  $195.16
+  Growth:           +$-4.73 (+-2.42%)
+
+=== 3. OPEN POSITIONS ===
+  SOL: 0.1 LONG, PnL=$-0.01
+  ATOM: 6.4 LONG, PnL=$-0.02
+  BTC: 0.0 SHORT, PnL=$+0.01
+  ETH: 0.0 LONG, PnL=$-0.01
+  INJ: 0.5 LONG, PnL=$+0.95
+  ETC: 21.1 LONG, PnL=$+26.49
+  Total PnL: $+27.40
+
+=== 4. TRADE ACTIVITY ===
+  Executions: 10
+  Risk Rejections: 134
+
+=== 5. PERFORMANCE ===
+  Current: \$190.17
+
+=== 6. LAST DECISION ===
+2026-09-19 22:57:42.392 | INFO     | src.agents.supervisor:run_cycle:291 - [hyperliquid] Decision: HOLD ADA/USDT (0.46) | composite=0.60 | regime=MEAN_REVERTING
+
+==========================================
+ Report: /home/prantik/Downloads/Personal/TradingBingx/reports/hourly_2026-09-19_23-00.txt
+==========================================
