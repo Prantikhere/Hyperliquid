@@ -203,6 +203,13 @@ class SupervisorAgent:
         # Falls back to static list if dynamic scoring fails
         whitelist = self._get_whitelist(exchange_id)
         symbol_ok = (symbol in whitelist) if whitelist else False
+        
+        # DEAD SYMBOL CHECK: Skip symbols with broken oracle/exchange feeds
+        dead_key = f"dead_symbols:{exchange_id}"
+        dead_symbols = self.redis.smembers(dead_key)
+        if symbol in dead_symbols:
+            log.warning(f"[DEAD_SYMBOL] {symbol} on {exchange_id} is blacklisted. Skipping.")
+            return {"action": "HOLD", "confidence": 0, "reason": f"Dead symbol: {symbol}"}
 
         if composite > buy_th and uptrend and symbol_ok:
             det_action = "BUY"

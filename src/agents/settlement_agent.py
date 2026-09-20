@@ -43,6 +43,13 @@ class SettlementAgent:
                     continue
                 if self.owned_symbols is not None and symbol not in self.owned_symbols:
                     continue
+                
+                # DEAD SYMBOL CHECK: Skip symbols with broken oracle/exchange feeds
+                dead_key = f"dead_symbols:{exchange_id}"
+                dead_symbols = self.redis.smembers(dead_key)
+                if symbol in dead_symbols:
+                    log.warning(f"[SETTLEMENT] {symbol} on {exchange_id} is in dead_symbols set. Skipping.")
+                    continue
 
                 # Get real-time price
                 current_price_str = self.redis.get(f"price:{exchange_id}:{symbol}") or self.redis.get(f"price:{symbol}")
