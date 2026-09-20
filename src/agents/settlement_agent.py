@@ -243,25 +243,16 @@ class SettlementAgent:
                         # Reset failed exit counter on success
                         failed_exit_key = f"failed_exits:{exchange_id}:{symbol}"
                         self.redis.delete(failed_exit_key)
-                    else:
-                        # Increment failed exit counter
-                        failed_exit_key = f"failed_exits:{exchange_id}:{symbol}"
-                        new_count = int(self.redis.get(failed_exit_key) or 0) + 1
-                        self.redis.set(failed_exit_key, new_count, ex=3600)  # 1h TTL
-                        log.warning(f"[SETTLEMENT] {symbol} on {exchange_id}: exit order failed ({new_count}/5 retries)")
                         
-                        # SESSION LOSS TRACKING: Track cumulative daily realized PnL
+                        # SESSION LOSS TRACKING: Only track REALIZED PnL on successful exits
                         import time as _time
                         session_key = f"session_realized_pnl:{int(_time.time() / 86400)}"
                         current_session_pnl = float(self.redis.get(session_key) or 0)
-                        # Each exit: compute dollar PnL from ROI * position size (approximate)
-                        # Use the position value from the DB
                         pos_value = abs(pos.get('quantity', 0)) * avg_price if avg_price > 0 else 0
                         dollar_pnl = roi * pos_value
                         new_session_pnl = current_session_pnl + dollar_pnl
                         self.redis.set(session_key, new_session_pnl, ex=172800)  # 48h TTL
-                        if new_session_pnl < 0:
-                            log.warning(f"[SESSION_GUARD] Daily realized PnL: ${new_session_pnl:.2f} (limit: -$5.00)")
+                        log.info(f"[SESSION_GUARD] Realized PnL updated: ${new_session_pnl:.2f} (limit: -$5.00)")
                         
                         # Record in learning module for future reference
                         learning_module.record_trade_outcome(
@@ -275,6 +266,12 @@ class SettlementAgent:
                             comp_score=comp,
                             holding_time_hours=held_hours
                         )
+                    else:
+                        # Increment failed exit counter
+                        failed_exit_key = f"failed_exits:{exchange_id}:{symbol}"
+                        new_count = int(self.redis.get(failed_exit_key) or 0) + 1
+                        self.redis.set(failed_exit_key, new_count, ex=3600)  # 1h TTL
+                        log.warning(f"[SETTLEMENT] {symbol} on {exchange_id}: exit order failed ({new_count}/5 retries)")
 
         except Exception as e:
             log.error(f"Settlement Cycle Error: {e}")
