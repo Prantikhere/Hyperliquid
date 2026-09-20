@@ -377,7 +377,8 @@ class SettlementAgent:
 
                     # 2. Run logic on actual state (fast Redis-based SL/TP checking)
                     await self.run_settlement_cycle("hyperliquid")
-                    await self.run_settlement_cycle("bingx")
+                    # BingX disabled — API key invalid, no positions on BingX
+                    # await self.run_settlement_cycle("bingx")
                 except Exception as e:
                     log.error(f"Settlement Agent Loop Error: {e}")
                 await asyncio.sleep(10) # Reconcile and check every 10 seconds
