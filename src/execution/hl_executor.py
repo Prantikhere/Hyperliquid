@@ -61,6 +61,10 @@ async def run_parallel():
             trading_loop(),
             settlement.run_forever()
         )
+    except Exception as e:
+        log.error(f"Fatal parallel error: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
         # Release FDs/sockets on shutdown only, not every sweep iteration
         try:
