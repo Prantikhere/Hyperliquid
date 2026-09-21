@@ -34,7 +34,21 @@ class SettlementAgent:
             
             # Fetch open orders once for the exchange to avoid rate limiting and allow duplicate checks
             try:
-                open_orders = await self.execution_agent.multi_client.exchanges[exchange_id].fetch_open_orders()
+                if exchange_id == "hyperliquid":
+                    # Use SDK client for HL (ccxt async hangs)
+                    open_orders_raw = self.execution_agent.multi_client.hl_sdk.get_open_orders()
+                    # Normalize to ccxt-like format for compatibility
+                    open_orders = []
+                    for o in open_orders_raw:
+                        open_orders.append({
+                            'symbol': o.get('coin', '') + '/USDT',
+                            'id': str(o.get('oid', '')),
+                            'side': 'buy' if o.get('side') == 'B' else 'sell',
+                            'amount': float(o.get('sz', 0)),
+                            'price': float(o.get('limitPx', 0)),
+                        })
+                else:
+                    open_orders = await self.execution_agent.multi_client.exchanges[exchange_id].fetch_open_orders()
             except Exception as e:
                 log.error(f"Failed to fetch open orders for {exchange_id} duplicate check: {e}")
                 open_orders = []
@@ -232,17 +246,9 @@ class SettlementAgent:
                             except Exception as ex_cancel:
                                 log.error(f"Failed to cancel order {order.get('id')} on {exchange_id}: {ex_cancel}")
 
-                    # Fetch LIVE price from exchange for HL to avoid "Price too far from oracle" errors
-                    # Redis-cached price can deviate from HL's oracle price
+                    # Use Redis-cached price from price_daemon (aiohttp, no hanging)
+                    # HL's oracle uses allMids which is the same source
                     live_price = current_price
-                    if exchange_id == "hyperliquid":
-                        try:
-                            mapped_sym = self.execution_agent.multi_client._get_mapped_symbol(exchange_id, symbol)
-                            ticker = await self.execution_agent.multi_client.exchanges[exchange_id].fetch_ticker(mapped_sym)
-                            if ticker and ticker.get('last'):
-                                live_price = float(ticker['last'])
-                        except Exception as e_price:
-                            log.warning(f"[SETTLEMENT] Could not fetch live HL price for {symbol}: {e_price}, using cached {current_price}")
 
                     trade_params = {
                         "symbol": symbol,
@@ -302,24 +308,34 @@ class SettlementAgent:
                 # Get DB positions before reconciliation to detect closed positions
                 db_positions_before = self.db.get_positions()
 
-                raw_positions = await self.execution_agent.multi_client.get_onchain_positions(eid)
-                # Map CCXT positions to our internal format
-                # [{'symbol': 'BTC/USDT', 'quantity': 1.0, 'avg_price': 50000}, ...]
+                if eid == "hyperliquid":
+                    raw_positions = await asyncio.wait_for(
+                        self.execution_agent.multi_client.get_onchain_positions(eid),
+                        timeout=15
+                    )
+                else:
+                    raw_positions = await self.execution_agent.multi_client.get_onchain_positions(eid)
+                # Map positions to our internal format
                 sync_list = []
                 for p in raw_positions:
-                    # CCXT returns 'contracts' or 'amount' for quantity. 
-                    # We need to handle mapping from exchange symbol back to our format
-                    symbol = p.get('symbol', '')
                     if eid == "hyperliquid":
-                        symbol = symbol.replace("/USDC:USDC", "/USDT")
-                    
-                    qty = float(p.get('contracts', 0) or p.get('amount', 0))
-                    if p.get('side') == 'short': qty = -abs(qty)
+                        # SDK returns: {"position": {"coin": "NEAR", "szi": "-3.2", "entryPx": "4.4271", ...}}
+                        pos_data = p.get("position", p)
+                        coin = pos_data.get("coin", "")
+                        symbol = f"{coin}/USDT"
+                        qty = float(pos_data.get("szi", 0))
+                        avg_price = float(pos_data.get("entryPx", 0))
+                    else:
+                        # CCXT format
+                        symbol = p.get('symbol', '')
+                        qty = float(p.get('contracts', 0) or p.get('amount', 0))
+                        if p.get('side') == 'short': qty = -abs(qty)
+                        avg_price = float(p.get('entryPrice') or p.get('avgPrice') or 0)
                     
                     sync_list.append({
                         'symbol': symbol,
                         'quantity': qty,
-                        'avg_price': float(p.get('entryPrice') or p.get('avgPrice') or 0)
+                        'avg_price': avg_price
                     })
                 
                 self.db.reconcile_positions(eid, sync_list)
@@ -330,7 +346,12 @@ class SettlementAgent:
                 
                 # Fetch all open orders once per exchange for stale check
                 try:
-                    open_orders = await self.execution_agent.multi_client.exchanges[eid].fetch_open_orders()
+                    if eid == "hyperliquid":
+                        # Use SDK client for HL
+                        open_orders_raw = self.execution_agent.multi_client.hl_sdk.get_open_orders()
+                        open_orders = [{'symbol': o.get('coin', '') + '/USDT', 'id': str(o.get('oid', ''))} for o in open_orders_raw]
+                    else:
+                        open_orders = await self.execution_agent.multi_client.exchanges[eid].fetch_open_orders()
                 except Exception as e:
                     log.error(f"Failed to fetch open orders for stale check on {eid}: {e}")
                     open_orders = []

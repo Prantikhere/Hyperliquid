@@ -1,6 +1,8 @@
 import ccxt.async_support as ccxt
+import asyncio
 import os
 from src.utils.logger import log
+from src.execution.hl_raw import HlSdkClient
 
 class MultiExchangeClient:
     def __init__(self):
@@ -12,45 +14,54 @@ class MultiExchangeClient:
             'timeout': 30000,
         })
         
-        # 2. Hyperliquid API Agent Integration.
-        # Signing key and wallet address are both taken from .env and MUST belong to the same
-        # account or Hyperliquid rejects the order. Env-var aliases tolerate either name.
-        self.primary_addr = os.getenv("HL_WALLET_ADDRESS")
-        hl_key = os.getenv("HL_PRIVATE") or os.getenv("HL_PRIVATE_KEY")
-        self.hl = ccxt.hyperliquid({
-            'privateKey': hl_key,
-            'walletAddress': self.primary_addr,
-            'options': {
-                'defaultType': 'swap',
-                'slippage': 0.05
-            },
-            'timeout': 30000,
-        })
-        self.hl.set_sandbox_mode(True)
-        self.hl.walletAddress = self.primary_addr
+        # 2. Hyperliquid — using official SDK (bypasses ccxt async issues)
+        self.hl_sdk = HlSdkClient()
+        
+        # Keep ccxt hl for reference/fallback only
+        self.hl = None
         
         self.exchanges = {
             "bingx": self.bingx,
-            "hyperliquid": self.hl
+            "hyperliquid": None  # SDK handles HL
         }
 
     def _get_mapped_symbol(self, exchange_id, symbol):
         if exchange_id == "hyperliquid":
-            # Per user request: HL uses USDC
-            return symbol.replace("/USDT", "/USDC:USDC")
+            return symbol.replace("/USDT", "")
         return symbol
 
     async def set_leverage(self, exchange_id, symbol, leverage):
+        if exchange_id == "hyperliquid":
+            coin = self._get_mapped_symbol(exchange_id, symbol)
+            return self.hl_sdk.set_leverage(coin, int(leverage))
         try:
             exchange = self.exchanges.get(exchange_id)
             if exchange:
                 mapped_symbol = self._get_mapped_symbol(exchange_id, symbol)
-                # Hyperliquid requires setting leverage before trading
                 return await exchange.set_leverage(int(leverage), mapped_symbol)
         except Exception as e:
             log.error(f"Error setting leverage on {exchange_id} for {symbol}: {e}")
 
     async def place_order(self, exchange_id, symbol, side, order_type, quantity, price=None, leverage=None, reduce_only=False):
+        if exchange_id == "hyperliquid":
+            coin = self._get_mapped_symbol(exchange_id, symbol)
+            is_buy = side.lower() == "buy"
+            
+            # Set leverage for new entries
+            if not reduce_only:
+                lev = int(leverage) if leverage else 5
+                self.hl_sdk.set_leverage(coin, lev)
+            
+            if order_type.upper() == "MARKET":
+                return self.hl_sdk.place_market_order(
+                    coin, is_buy, quantity, slippage=0.01, reduce_only=reduce_only
+                )
+            else:
+                return self.hl_sdk.place_limit_order(
+                    coin, is_buy, quantity, price, reduce_only=reduce_only
+                )
+
+        # BingX uses ccxt
         try:
             exchange = self.exchanges.get(exchange_id)
             if not exchange: return None
@@ -58,9 +69,8 @@ class MultiExchangeClient:
             mapped_symbol = self._get_mapped_symbol(exchange_id, symbol)
             ccxt_side = side.lower()
             
-            # Enforce Leverage per User Request / dynamic calculation
             if leverage is None:
-                leverage = 5 if exchange_id == "hyperliquid" else 7
+                leverage = 7
             await self.set_leverage(exchange_id, symbol, leverage)
             
             log.info(f"[{exchange_id}] Sending {ccxt_side} {order_type} for {quantity} {mapped_symbol} (Leverage: {leverage}x, ReduceOnly: {reduce_only})")
@@ -68,11 +78,8 @@ class MultiExchangeClient:
             params = {}
             if reduce_only:
                 params['reduceOnly'] = True
-            if exchange_id == "hyperliquid" and order_type.upper() == "MARKET":
-                params['slippage'] = 0.10  # 10% slippage tolerance for HL oracle price mismatch
             
             if order_type.upper() == "MARKET":
-                # HL requires price for market orders to calculate max slippage
                 return await exchange.create_order(mapped_symbol, 'market', ccxt_side, quantity, price, params)
             else:
                 return await exchange.create_order(mapped_symbol, 'limit', ccxt_side, quantity, price, params)
@@ -82,6 +89,8 @@ class MultiExchangeClient:
             return {"error": str(e)}
 
     async def get_balance(self, exchange_id):
+        if exchange_id == "hyperliquid":
+            return self.hl_sdk.get_balance()
         try:
             exchange = self.exchanges.get(exchange_id)
             if exchange:
@@ -92,6 +101,8 @@ class MultiExchangeClient:
 
     async def get_onchain_positions(self, exchange_id):
         """Fetch positions directly from the exchange chain/API."""
+        if exchange_id == "hyperliquid":
+            return self.hl_sdk.get_positions()
         try:
             exchange = self.exchanges.get(exchange_id)
             if exchange:
@@ -102,5 +113,7 @@ class MultiExchangeClient:
             raise e
 
     async def close(self):
-        for exchange in self.exchanges.values():
-            await exchange.close()
+        if self.bingx:
+            await self.bingx.close()
+        if self.hl_sdk:
+            self.hl_sdk.close()

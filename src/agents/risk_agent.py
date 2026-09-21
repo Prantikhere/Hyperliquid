@@ -140,18 +140,14 @@ class RiskAgent:
             
             # SAFETY NET: Also check actual exchange positions directly
             try:
-                import ccxt
-                exchange = ccxt.hyperliquid({
-                    'enableRateLimit': True,
-                    'options': {'defaultType': 'swap'},
-                    'walletAddress': '0x07dd93729632BEF8B3A522F8079efD483990aE34'
-                })
-                exchange.load_markets()
-                positions = exchange.fetch_positions([symbol])
-                for pos in positions:
-                    if pos.get('contracts', 0) and float(pos['contracts']) > 0:
-                        log.warning(f"[RISK_DEBUG] SAFETY NET: {symbol} already has active position on HL: {pos['side']} {pos['contracts']}")
-                        return {"approved": False, "reason": f"Active HL position exists for {symbol}: {pos['side']}"}
+                from src.execution.hl_raw import HlSdkClient
+                hl_client = HlSdkClient()
+                coin = symbol.replace("/USDT", "")
+                pos = hl_client.get_position(coin)
+                if pos and float(pos.get("szi", 0)) != 0:
+                    pos_side = "long" if float(pos["szi"]) > 0 else "short"
+                    log.warning(f"[RISK_DEBUG] SAFETY NET: {symbol} already has active position on HL: {pos_side} {pos.get('szi')}")
+                    return {"approved": False, "reason": f"Active HL position exists for {symbol}: {pos_side}"}
             except Exception as e:
                 log.debug(f"[RISK_DEBUG] HL position check failed: {e}")
 

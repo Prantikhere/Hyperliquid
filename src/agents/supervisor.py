@@ -95,7 +95,8 @@ class SupervisorAgent:
             balance = await self.execution_agent.multi_client.get_balance(exchange_id)
             if balance:
                 if exchange_id == 'hyperliquid':
-                    equity = float(balance.get('info', {}).get('marginSummary', {}).get('accountValue', 0))
+                    # SDK returns: {'account_value': float, 'margin_used': float, 'available': float}
+                    equity = float(balance.get('account_value', 0))
                 else:
                     equity = float(balance.get('total', {}).get('USDT', 0) or balance.get('total', {}).get('USDC', 0) or 0)
                 
