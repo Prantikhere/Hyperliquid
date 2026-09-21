@@ -129,6 +129,15 @@ class SettlementAgent:
                 # BREAKEVEN STOP: Only at very high profit (4%+) to let winners run
                 breakeven_stop = (roi > 0.04) and (peak_roi > 0.04) and (roi < 0.01)
 
+                # TIME-BASED EXIT: Cut stale positions
+                import time
+                position_age_key = f"position_age:{exchange_id}:{symbol}"
+                position_age = float(self.redis.get(position_age_key) or 0)
+                if position_age == 0:
+                    self.redis.set(position_age_key, time.time(), ex=86400)
+                    position_age = time.time()
+                held_hours = (time.time() - position_age) / 3600
+
                 reverted = (not is_trend) and (roi > REVERT_MIN_ROI) and (roi > 0.005) and (held_hours > 0.5) and (
                     (side == "LONG" and comp <= 0.5) or (side == "SHORT" and comp >= 0.5)
                 )
@@ -143,16 +152,6 @@ class SettlementAgent:
                 # MOMENTUM EXIT: Exit when signal weakens
                 momentum_fading = (roi > 0.01) and (comp < 0.35)
 
-                # TIME-BASED EXIT: Cut stale positions
-                # FIX: Increased from 3h to 8h. Only exit if actually losing (<0%), not just <3%.
-                # The old 3h threshold caused a churn loop: enter -> stale exit at -0.05% -> re-enter.
-                import time
-                position_age_key = f"position_age:{exchange_id}:{symbol}"
-                position_age = float(self.redis.get(position_age_key) or 0)
-                if position_age == 0:
-                    self.redis.set(position_age_key, time.time(), ex=86400)
-                    position_age = time.time()
-                held_hours = (time.time() - position_age) / 3600
                 stale_position = (held_hours > 8) and (roi < 0)  # 8h with negative ROI = stale
 
                 log.info(f"[SETTLEMENT] {exchange_id} {symbol} {side} | ROI: {roi*100:.2f}% | Peak: {peak_roi*100:.2f}% | TP: {tp_threshold*100:.2f}% | SL: {sl_threshold*100:.2f}% | comp: {comp:.2f} | regime: {regime} | held: {held_hours:.1f}h")

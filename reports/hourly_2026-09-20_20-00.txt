@@ -1,0 +1,40 @@
+==========================================
+ HOURLY ASSESSMENT REPORT
+ Sun Sep 20 08:00:03 PM IST 2026
+==========================================
+
+=== 1. SERVICES ===
+  PID=8016 START=Sep08 CMD=src/data/multi_streamer.py
+  PID=8027 START=Sep08 CMD=src.execution.hl_perp_ls
+  PID=8034 START=Sep08 CMD=src.execution.pairs_arb_executor
+  PID=3958459 START=15:34 CMD=src/execution/hl_executor.py
+
+=== 2. EQUITY / AUM ===
+  Account Value:    $183.84
+  Margin Used:      $98.23 (53.4%)
+  Free Margin:      $85.61
+  Starting Equity:  $195.16
+  Growth:           +$-11.32 (+-5.80%)
+
+=== 3. OPEN POSITIONS ===
+  ATOM: 8.2 SHORT, PnL=$+0.03
+  BTC: 0.0 SHORT, PnL=$-0.03
+  INJ: 0.5 LONG, PnL=$+0.98
+  NEAR: 3.1 LONG, PnL=$+0.08
+  FIL: 14.5 SHORT, PnL=$+0.48
+  ETC: 21.1 LONG, PnL=$+21.90
+  Total PnL: $+23.45
+
+=== 4. TRADE ACTIVITY ===
+  Executions: 0
+  Risk Rejections: 248
+
+=== 5. PERFORMANCE ===
+  Current: \$183.83
+
+=== 6. LAST DECISION ===
+2026-09-20 19:57:56.250 | INFO     | src.agents.supervisor:run_cycle:298 - [hyperliquid] Decision: HOLD BNB/USDT (0.54) | composite=0.65 | regime=MEAN_REVERTING
+
+==========================================
+ Report: /home/prantik/Downloads/Personal/TradingBingx/reports/hourly_2026-09-20_20-00.txt
+==========================================
