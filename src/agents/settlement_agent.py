@@ -28,6 +28,7 @@ class SettlementAgent:
 
     async def run_settlement_cycle(self, exchange_id="hyperliquid"):
         """Scan all open positions for profit booking opportunities."""
+        held_hours = 0.0
         try:
             positions = self.db.get_positions()
             

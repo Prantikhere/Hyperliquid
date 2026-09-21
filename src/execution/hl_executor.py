@@ -1,5 +1,13 @@
 import asyncio
 import os
+import sys
+
+# Ensure project root is on sys.path so 'src.*' imports work even when
+# PYTHONPATH is not exported (e.g. watchdog nohup restarts).
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
 from dotenv import load_dotenv
 from src.utils.logger import log
 from src.agents.supervisor import SupervisorAgent
@@ -55,12 +63,19 @@ async def run_parallel():
                 log.error(f"Trading Loop Error: {e}")
                 await asyncio.sleep(10)
 
-    # Run Trading and Settlement in parallel
+    # Run Trading and Settlement in parallel.
+    # return_exceptions=True prevents one task crashing from killing the other.
     try:
-        await asyncio.gather(
+        results = await asyncio.gather(
             trading_loop(),
-            settlement.run_forever()
+            settlement.run_forever(),
+            return_exceptions=True
         )
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                log.error(f"Task {i} exited with error: {result}")
+                import traceback
+                traceback.print_exception(type(result), result, result.__traceback__)
     except Exception as e:
         log.error(f"Fatal parallel error: {e}")
         import traceback
@@ -73,4 +88,23 @@ async def run_parallel():
             log.error(f"Error closing multi-client on shutdown: {close_err}")
 
 if __name__ == "__main__":
-    asyncio.run(run_parallel())
+    import signal
+    import logging
+
+    def _handle_signal(signum, frame):
+        log.warning(f"Received signal {signum} ({signal.Signals(signum).name}). Shutting down gracefully.")
+        # Don't exit — let asyncio handle cleanup via the finally block
+
+    signal.signal(signal.SIGTERM, _handle_signal)
+    signal.signal(signal.SIGINT, _handle_signal)
+
+    try:
+        asyncio.run(run_parallel())
+    except KeyboardInterrupt:
+        log.warning("KeyboardInterrupt received. Shutting down.")
+    except Exception as e:
+        log.critical(f"hl_executor.py CRASHED: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        log.info("hl_executor.py process exiting.")
