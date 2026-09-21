@@ -132,6 +132,20 @@ class SupervisorAgent:
         quant_signals = self.strategy_ensemble.get_signals(price_list, json.loads(book) if book else None)
         var_risk = self.risk_surface.simulate_drawdown(100, 0.5)
 
+        # AUTONOMOUS BRAIN: Get recommendations before decision logic
+        brain_recommendation = None
+        if hasattr(self, 'brain') and self.brain:
+            try:
+                brain_recommendation = self.brain.get_trade_recommendation(symbol, regime)
+                if not brain_recommendation.get("should_trade", True):
+                    log.info(f"[BRAIN] {symbol} blocked: {brain_recommendation.get('reason', 'unknown')}")
+                    return {"action": "HOLD", "confidence": 0, "reason": f"Brain blocked: {brain_recommendation.get('reason')}"}
+                # Apply confidence adjustment from brain
+                if brain_recommendation.get("confidence_adjustment", 1.0) != 1.0:
+                    log.debug(f"[BRAIN] {symbol} confidence adjustment: {brain_recommendation['confidence_adjustment']:.2f}")
+            except Exception as e:
+                log.error(f"[BRAIN] Recommendation failed: {e}")
+
         # SHADOW: structural-break anomaly score, independent of the rule-based DD-kill.
         # Never gates or sizes anything -- logged only, for future evaluation.
         try:
@@ -175,8 +189,15 @@ class SupervisorAgent:
         # validated quant edges is the sole, authoritative signal. Deterministic = zero network
         # latency, zero 429/402 failures. Thresholds come from the backtested strategy config.
         composite = self.strategy_ensemble.composite_score(quant_signals, regime)
-        buy_th = self.cfg.get("buy_threshold", 0.58)
-        sell_th = self.cfg.get("sell_threshold", 0.42)
+        
+        # Use brain-tuned parameters if available
+        if brain_recommendation and brain_recommendation.get("tuner_params"):
+            tuner = brain_recommendation["tuner_params"]
+            buy_th = tuner.get("buy_threshold", self.cfg.get("buy_threshold", 0.58))
+            sell_th = tuner.get("sell_threshold", self.cfg.get("sell_threshold", 0.42))
+        else:
+            buy_th = self.cfg.get("buy_threshold", 0.58)
+            sell_th = self.cfg.get("sell_threshold", 0.42)
 
         # SHADOW: [EDGE_METRICS] per-symbol shadow logging. Tracks unrealized P&L and
         # signal uncertainty — purely observational, never decision-affecting.

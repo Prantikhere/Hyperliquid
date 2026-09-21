@@ -1,6 +1,7 @@
 import asyncio
 import os
 import sys
+import redis
 
 # Ensure project root is on sys.path so 'src.*' imports work even when
 # PYTHONPATH is not exported (e.g. watchdog nohup restarts).
@@ -12,6 +13,7 @@ from dotenv import load_dotenv
 from src.utils.logger import log
 from src.agents.supervisor import SupervisorAgent
 from src.agents.settlement_agent import SettlementAgent
+from src.autonomous.brain import AutonomousBrain
 
 load_dotenv()
 
@@ -19,6 +21,22 @@ async def run_parallel():
     print("Init Supervisor...")
     supervisor = SupervisorAgent()
     print("Init Done.")
+
+    # Initialize Autonomous Brain
+    print("Init Autonomous Brain...")
+    try:
+        r = redis.Redis(host=os.getenv('REDIS_HOST', 'localhost'), port=6379, decode_responses=True)
+        brain = AutonomousBrain(
+            db=supervisor.execution_agent.db if hasattr(supervisor.execution_agent, 'db') else None,
+            redis_client=r,
+            learning_module=supervisor.learning_module if hasattr(supervisor, 'learning_module') else None
+        )
+        # Inject brain into supervisor for trade recommendations
+        supervisor.brain = brain
+        print("Autonomous Brain initialized.")
+    except Exception as e:
+        log.error(f"Failed to init Autonomous Brain: {e}")
+        brain = None
 
     # Dynamic whitelist managed by DynamicWhitelist multi-factor scoring.
     # Falls back to static list if dynamic scoring fails.
@@ -42,7 +60,7 @@ async def run_parallel():
     print("Init Settlement...")
     # Monitor ALL positions for profit booking (not just HL executor's symbols)
     # This ensures positions from perp_ls, pairs_arb also get TP/SL management
-    settlement = SettlementAgent(owned_symbols=None)
+    settlement = SettlementAgent(owned_symbols=None, brain=brain)
     
     # Aggressive 60s interval
     interval = 60
@@ -50,6 +68,7 @@ async def run_parallel():
     log.info(f"Starting AGGRESSIVE Hyperliquid Executor with Profit Booking...")
     
     async def trading_loop():
+        cycle_count = 0
         while True:
             try:
                 symbols = get_symbols()
@@ -57,6 +76,14 @@ async def run_parallel():
                 for symbol in symbols:
                     await supervisor.run_cycle(symbol, exchange_id="hyperliquid")
                     await asyncio.sleep(1) # Fast sweep
+                
+                # Brain cycle every 5 trading loops (approx every 5 min)
+                cycle_count += 1
+                if brain and cycle_count % 5 == 0:
+                    brain.cycle()
+                    if cycle_count % 30 == 0:  # Log report every ~30 min
+                        brain.log_report()
+                
                 log.info(f"Scan complete. Active positions being managed by Settlement Agent. Waiting {interval}s...")
                 await asyncio.sleep(interval)
             except Exception as e:

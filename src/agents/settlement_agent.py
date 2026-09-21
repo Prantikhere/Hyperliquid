@@ -14,12 +14,13 @@ class SettlementAgent:
     Dedicated agent for continuous profit booking and position management.
     Ensures that once a trade is made, it is actively managed to book profit.
     """
-    def __init__(self, owned_symbols=None):
+    def __init__(self, owned_symbols=None, brain=None):
         self.db = DatabaseManager()
         self.execution_agent = ExecutionAgent(self.db)
         self.redis = redis.Redis(host=os.getenv('REDIS_HOST', 'localhost'), port=6379, decode_responses=True)
         self.regime_engine = RegimeEngine()
         self.strategy_ensemble = StrategyEnsemble()
+        self.brain = brain  # Autonomous brain for learning
         # Restrict profit-booking to this bot's own universe. Without this filter,
         # run_settlement_cycle scans every position in the DB -- including legs
         # opened by perp_ls/pairs_arb (same wallet) -- and force-closes them on
@@ -291,6 +292,29 @@ class SettlementAgent:
                             comp_score=comp,
                             holding_time_hours=held_hours
                         )
+                        
+                        # AUTONOMOUS BRAIN: Feed trade outcome for learning
+                        if self.brain:
+                            try:
+                                trade_data = {
+                                    "symbol": symbol,
+                                    "side": side,
+                                    "entry_price": avg_price,
+                                    "exit_price": current_price,
+                                    "roi_pct": roi * 100,  # Convert to percentage
+                                    "held_seconds": held_hours * 3600,
+                                    "regime_at_entry": regime,
+                                    "regime_at_exit": regime,
+                                    "meta_confidence": comp,
+                                    "quant_action": decision,
+                                    "strategy": "composite",
+                                }
+                                forensics = self.brain.on_trade_exit(trade_data)
+                                if forensics:
+                                    log.info(f"[BRAIN] Forensics: {symbol} {forensics.failure_mode} "
+                                             f"severity={forensics.severity} lesson={forensics.lesson[:60]}")
+                            except Exception as brain_err:
+                                log.error(f"[BRAIN] Forensics failed: {brain_err}")
                     else:
                         # Increment failed exit counter
                         failed_exit_key = f"failed_exits:{exchange_id}:{symbol}"
@@ -373,6 +397,26 @@ class SettlementAgent:
                                     roi = (avg_price - current_price) / avg_price
                                 log.warning(f"Reconciliation: Logging reconciled exit outcome for {symbol} on {eid} with estimated ROI {roi*100:.2f}%")
                                 self.db.log_trade_outcome(symbol, eid, roi)
+                                
+                                # AUTONOMOUS BRAIN: Feed reconciled trade for learning
+                                if self.brain:
+                                    try:
+                                        trade_data = {
+                                            "symbol": symbol,
+                                            "side": side,
+                                            "entry_price": avg_price,
+                                            "exit_price": current_price,
+                                            "roi_pct": roi * 100,
+                                            "held_seconds": 0,  # Unknown for reconciliation
+                                            "regime_at_entry": "UNKNOWN",
+                                            "regime_at_exit": "UNKNOWN",
+                                            "meta_confidence": 0.5,
+                                            "quant_action": "HOLD",
+                                            "strategy": "reconciliation",
+                                        }
+                                        self.brain.on_trade_exit(trade_data)
+                                    except Exception as brain_err:
+                                        log.error(f"[BRAIN] Reconciliation forensics failed: {brain_err}")
                         except Exception as ex_outcome:
                             log.error(f"Failed to log reconciled trade outcome for {symbol} on {eid}: {ex_outcome}")
 
