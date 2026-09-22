@@ -1,14 +1,13 @@
 {
   "buy_threshold": 0.55,
   "sell_threshold": 0.45,
-  "min_confidence": 0.5,
+  "min_confidence": 0.55,
   "live_safe": true,
-  "use_dynamic_whitelist": true,
+  "use_dynamic_whitelist": false,
   "dynamic_whitelist_top_n": 8,
   "dynamic_whitelist_update_hours": 4,
   "symbol_whitelist": [
     "ARB/USDT",
-    "OP/USDT",
     "ETC/USDT",
     "HBAR/USDT",
     "TIA/USDT",

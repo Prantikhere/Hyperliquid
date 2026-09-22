@@ -133,6 +133,11 @@ class SupervisorAgent:
         book = self.redis.get(f"book:{exchange_id}:{symbol}")
         quant_signals = self.strategy_ensemble.get_signals(price_list, json.loads(book) if book else None)
 
+        # BLOCK UNKNOWN REGIME: 54 trades, 0 wins, -11.18% ROI
+        if regime == "UNKNOWN":
+            log.info(f"[REGIME_BLOCK] {symbol}: UNKNOWN regime blocked (0% historical win rate)")
+            return {"action": "HOLD", "confidence": 0, "reason": "UNKNOWN regime blocked"}
+
         # AUTONOMOUS BRAIN: Get recommendations before decision logic
         brain_recommendation = None
         if hasattr(self, 'brain') and self.brain:

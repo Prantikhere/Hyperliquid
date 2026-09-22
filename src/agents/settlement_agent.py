@@ -319,7 +319,7 @@ class SettlementAgent:
                         # Increment failed exit counter
                         failed_exit_key = f"failed_exits:{exchange_id}:{symbol}"
                         new_count = int(self.redis.get(failed_exit_key) or 0) + 1
-                        self.redis.set(failed_exit_key, new_count, ex=3600)  # 1h TTL
+                        self.redis.set(failed_exit_key, new_count, ex=86400)  # 24h TTL - don't retry for 24h
                         log.warning(f"[SETTLEMENT] {symbol} on {exchange_id}: exit order failed ({new_count}/5 retries)")
 
         except Exception as e:

@@ -47,14 +47,11 @@ async def run_parallel():
     ]
 
     def get_symbols():
+        # Use supervisor's whitelist method which respects use_dynamic_whitelist config
         try:
-            from src.quant.dynamic_whitelist import DynamicWhitelist
-            dyn = DynamicWhitelist(exchange_id='hyperliquid', top_n=8, update_interval_hours=4)
-            wl = dyn.get_whitelist()
-            if wl:
-                return wl
+            return supervisor._get_whitelist('hyperliquid')
         except Exception as e:
-            log.warning(f"Dynamic whitelist failed: {e}, using fallback")
+            log.warning(f"Whitelist failed: {e}, using fallback")
         return fallback_symbols
 
     print("Init Settlement...")
