@@ -9,7 +9,7 @@ class StrategyEnsemble:
     Provides signals for Mean Reversion, Momentum, and Order Flow.
     """
     def __init__(self):
-        pass
+        self.last_rnn_result = None  # Cache for meta-learner to avoid double RNN call
 
     def get_signals(self, prices, book=None):
         if len(prices) < 20:
@@ -52,9 +52,11 @@ class StrategyEnsemble:
 
         # 5. RNN Signal (Neural network price prediction)
         rnn_signal = 0.5
+        self.last_rnn_result = None  # Reset cache
         if len(prices) > 30:
             rnn_result = rnn_predictor.predict(prices)
             rnn_signal = rnn_result['prediction']
+            self.last_rnn_result = rnn_result  # Cache for meta-learner
             log.debug(f"[RNN] Signal: {rnn_result['signal']}, Confidence: {rnn_result['confidence']:.2f}")
 
         return {

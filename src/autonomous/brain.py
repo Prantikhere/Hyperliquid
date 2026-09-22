@@ -68,6 +68,7 @@ class AutonomousBrain:
     def __init__(self, db=None, redis_client=None, learning_module=None):
         self.db = db
         self.redis = redis_client
+        self.learning_module = learning_module  # Expose for unified banning
         self.state = BrainState()
         
         # Initialize modules
@@ -181,10 +182,14 @@ class AutonomousBrain:
         return forensics
 
     def _ban_symbol(self, symbol: str, reason: str):
-        """Ban a symbol from trading."""
+        """Ban a symbol from trading (both Redis and LearningModule)."""
+        # Redis ban (for cross-process visibility)
         if self.redis:
             self.redis.sadd("banned_symbols", symbol)
             self.redis.set(f"ban_reason:{symbol}", reason, ex=86400 * 7)
+        # LearningModule ban (for in-process consistency)
+        if self.learning_module:
+            self.learning_module.banned_symbols.add(symbol)
         log.warning(f"[BRAIN] Banned {symbol}: {reason}")
 
     def _cross_module_learning(self, forensics: TradeForensics):
@@ -287,6 +292,11 @@ class AutonomousBrain:
         elif health.get("confidence_adjustment", 1.0) != 1.0:
             confidence_adj *= health["confidence_adjustment"]
             reason = f"Adjusted: {health.get('last_failure_mode', 'unknown')}"
+
+        # Check LearningModule's banned symbols (unified banning)
+        if self.learning_module and symbol in getattr(self.learning_module, 'banned_symbols', set()):
+            should_trade = False
+            reason = f"Banned by LearningModule: catastrophic loss history"
 
         # Check lifecycle
         lifecycle_health = self.lifecycle.get_symbol_health(symbol)

@@ -10,6 +10,10 @@ class RegimeEngine:
     """
     def __init__(self, window=20):
         self.window = window
+        # Cached metrics from last detect_regime() call (shared with AnomalyDetector)
+        self.last_er = None
+        self.last_vol_ratio = None
+        self.last_regime = None
 
     def detect_regime(self, prices):
         """
@@ -53,6 +57,10 @@ class RegimeEngine:
                 regime += "_HIGH_VOL"
 
             log.debug(f"Regime Analysis: ER={er:.2f}, VolRatio={vol_ratio:.2f} -> {regime}")
+            # Cache for sharing with AnomalyDetector
+            self.last_er = er
+            self.last_vol_ratio = vol_ratio
+            self.last_regime = regime
             return regime
             
         except Exception as e:

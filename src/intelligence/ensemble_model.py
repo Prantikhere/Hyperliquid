@@ -48,10 +48,11 @@ class EnsembleMetaLearner:
             log.warning("No pre-trained meta-learner found. Using heuristic weights.")
             self.is_trained = False
 
-    def predict_confidence(self, features, prices=None):
+    def predict_confidence(self, features, prices=None, rnn_result=None):
         """
         features: {mean_reversion, momentum, order_flow, trend, llm_signal}
         prices: Recent price history for RNN prediction (optional)
+        rnn_result: Pre-computed RNN result from StrategyEnsemble (avoids double call)
         Returns: meta_confidence (0 to 1).
         """
         if not self.is_trained:
@@ -72,23 +73,26 @@ class EnsembleMetaLearner:
             
             # Add RNN prediction if prices available
             rnn_weight = 0.15  # 15% weight for RNN
-            if prices is not None and len(prices) > 30:
-                rnn_result = rnn_predictor.predict(prices)
-                rnn_signal = rnn_result['prediction']
-                rnn_confidence = rnn_result['confidence']
+            # Use pre-computed RNN result if available, otherwise call RNN
+            _rnn = rnn_result
+            if _rnn is None and prices is not None and len(prices) > 30:
+                _rnn = rnn_predictor.predict(prices)
+            if _rnn is not None:
+                rnn_signal = _rnn['prediction']
+                rnn_confidence = _rnn['confidence']
                 
                 # Combine with heuristic
                 base_confidence = (llm_val * 0.7) + (quant_align * 0.3)
                 
                 # RNN adds or subtracts based on its prediction
-                if rnn_result['signal'] == 'LONG':
+                if _rnn['signal'] == 'LONG':
                     confidence = base_confidence * (1 + rnn_weight * rnn_confidence)
-                elif rnn_result['signal'] == 'SHORT':
+                elif _rnn['signal'] == 'SHORT':
                     confidence = base_confidence * (1 - rnn_weight * rnn_confidence)
                 else:
                     confidence = base_confidence
                 
-                log.debug(f"[META_LEARNER] RNN: signal={rnn_result['signal']}, confidence={rnn_confidence:.2f}")
+                log.debug(f"[META_LEARNER] RNN: signal={_rnn['signal']}, confidence={rnn_confidence:.2f}")
                 return min(max(confidence, 0), 1)
             
             return (llm_val * 0.7) + (quant_align * 0.3)
@@ -104,19 +108,22 @@ class EnsembleMetaLearner:
                 
                 # Add RNN prediction if prices available
                 rnn_weight = 0.15
-                if prices is not None and len(prices) > 30:
-                    rnn_result = rnn_predictor.predict(prices)
-                    rnn_signal = rnn_result['prediction']
-                    rnn_confidence = rnn_result['confidence']
+                # Use pre-computed RNN result if available, otherwise call RNN
+                _rnn = rnn_result
+                if _rnn is None and prices is not None and len(prices) > 30:
+                    _rnn = rnn_predictor.predict(prices)
+                if _rnn is not None:
+                    rnn_signal = _rnn['prediction']
+                    rnn_confidence = _rnn['confidence']
                     
-                    if rnn_result['signal'] == 'LONG':
+                    if _rnn['signal'] == 'LONG':
                         confidence = base_confidence * (1 + rnn_weight * rnn_confidence)
-                    elif rnn_result['signal'] == 'SHORT':
+                    elif _rnn['signal'] == 'SHORT':
                         confidence = base_confidence * (1 - rnn_weight * rnn_confidence)
                     else:
                         confidence = base_confidence
                     
-                    log.debug(f"[META_LEARNER] raw_roi={raw_roi*100:.3f}% -> confidence={base_confidence:.4f}, RNN: {rnn_result['signal']}")
+                    log.debug(f"[META_LEARNER] raw_roi={raw_roi*100:.3f}% -> confidence={base_confidence:.4f}, RNN: {_rnn['signal']}")
                     return min(max(confidence, 0), 1)
                 
                 log.debug(f"[META_LEARNER] raw_roi={raw_roi*100:.3f}% -> confidence={base_confidence:.4f}")

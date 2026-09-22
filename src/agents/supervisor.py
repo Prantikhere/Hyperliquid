@@ -14,6 +14,7 @@ from src.quant.regime_engine import RegimeEngine
 from src.quant.multi_strategy import StrategyEnsemble, RiskSurface
 from src.intelligence.ensemble_model import EnsembleMetaLearner
 from src.quant.anomaly_detector import AnomalyDetector
+from src.quant.learning_module import learning_module
 from src.utils.logger import log
 from dotenv import load_dotenv
 
@@ -33,6 +34,7 @@ class SupervisorAgent:
         self.meta_learner = EnsembleMetaLearner()
         self.vector_memory = VectorMemory()  # shadow-only: recall/store, never touches decisions
         self.anomaly_detector = AnomalyDetector()  # shadow-only: logs outlier flag, never gates
+        self.learning_module = learning_module  # Expose for brain feedback loop
         self.cfg = self._load_strategy_config()
 
     def _acquire_singleton_lock(self):
@@ -130,7 +132,6 @@ class SupervisorAgent:
         regime = self.regime_engine.detect_regime(price_list)
         book = self.redis.get(f"book:{exchange_id}:{symbol}")
         quant_signals = self.strategy_ensemble.get_signals(price_list, json.loads(book) if book else None)
-        var_risk = self.risk_surface.simulate_drawdown(100, 0.5)
 
         # AUTONOMOUS BRAIN: Get recommendations before decision logic
         brain_recommendation = None
@@ -148,17 +149,10 @@ class SupervisorAgent:
 
         # SHADOW: structural-break anomaly score, independent of the rule-based DD-kill.
         # Never gates or sizes anything -- logged only, for future evaluation.
+        # Use cached ER/vol_ratio from RegimeEngine (avoids duplicate computation)
         try:
-            import numpy as _anp
-            _s = pd.Series(price_list, dtype=float)
-            _ret = _s.pct_change().dropna()
-            _tot = abs(_s.iloc[-1] - _s.iloc[0])
-            _sum_abs = _s.diff().abs().sum()
-            er = float(_tot / _sum_abs) if _sum_abs else 0.0
-            _recent_n = max(5, len(_s) // 4)
-            _full_vol = _ret.std()
-            _recent_vol = _ret.tail(_recent_n).std()
-            vol_ratio = float(_recent_vol / _full_vol) if _full_vol and _full_vol > 0 else 1.0
+            er = self.regime_engine.last_er if self.regime_engine.last_er is not None else 0.5
+            vol_ratio = self.regime_engine.last_vol_ratio if self.regime_engine.last_vol_ratio is not None else 1.0
             is_anom, anom_score = self.anomaly_detector.score({
                 **quant_signals, "er": er, "vol_ratio": vol_ratio
             })
@@ -287,7 +281,8 @@ class SupervisorAgent:
         # feature schema; the value is 100% quant-derived.
         quant_dir = 1.0 if det_action == "BUY" else (-1.0 if det_action == "SELL" else 0.0)
         meta_features = {**quant_signals, "llm_signal": quant_dir}
-        meta_confidence = self.meta_learner.predict_confidence(meta_features)
+        # Pass pre-computed RNN result from StrategyEnsemble to avoid double RNN call
+        meta_confidence = self.meta_learner.predict_confidence(meta_features, rnn_result=self.strategy_ensemble.last_rnn_result)
         # OVERRIDE: if composite signal is strong but meta-learner is miscalibrated,
         # allow trade at minimum floor so entries aren't permanently suppressed.
         # Only fires when the quant action is BUY/SELL (not HOLD) AND composite is strong.
