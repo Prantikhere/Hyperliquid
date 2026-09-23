@@ -229,16 +229,19 @@ class SupervisorAgent:
         whitelist = self._get_whitelist(exchange_id)
         symbol_ok = (symbol in whitelist) if whitelist else False
         
-        # DEAD SYMBOL CHECK: Skip symbols with broken oracle/exchange feeds
+        # DEAD & TOXIC SYMBOL CHECK: Skip symbols with broken oracle/exchange feeds or severe failure history
+        EXCLUDED_SYMBOLS = {"NEAR/USDT", "FIL/USDT", "HBAR/USDT"}
+        if symbol in EXCLUDED_SYMBOLS:
+            log.debug(f"[EXCLUDED_SYMBOL] {symbol} on {exchange_id} is permanently excluded (illiquid/toxic). Skipping.")
+            return {"action": "HOLD", "confidence": 0, "reason": f"Excluded toxic symbol: {symbol}"}
+
         dead_key = f"dead_symbols:{exchange_id}"
         dead_symbols = self.redis.smembers(dead_key)
         if symbol in dead_symbols:
             log.warning(f"[DEAD_SYMBOL] {symbol} on {exchange_id} is blacklisted. Skipping.")
             return {"action": "HOLD", "confidence": 0, "reason": f"Dead symbol: {symbol}"}
 
-        # LAYA System-1 cross-check: cached/background verdict (zero added latency).
-        # Used ONLY to veto or scale the quant decision -- never to invent entries
-        # (quant-only decision policy preserved). First cycle warms the cache.
+        # LAYA System-1 cross-check: cached verdict first (fast)
         laya_verdict = None
         laya_interp = None
         try:
@@ -261,32 +264,48 @@ class SupervisorAgent:
             det_action = "SELL"   # opens a SHORT in a downtrend -> hedge engages when trend is down
         elif composite >= 0.65 and symbol_ok and ("MEAN_REVERTING" in regime.upper() or "NEUTRAL" in regime.upper()):
             # Strong-signal override: composite is decisively bullish in MEAN_REVERTING/NEUTRAL regime.
-            # Raised from 0.60 to 0.65 to require higher conviction for entries.
             det_action = "BUY"
             log.debug(f"[ENTRY_DEBUG] {symbol}: Strong-signal BUY: composite={composite:.2f}, regime={regime}, symbol_ok={symbol_ok}")
         elif composite <= 0.35 and symbol_ok and ("MEAN_REVERTING" in regime.upper() or "NEUTRAL" in regime.upper()):
             # Strong-signal override: composite is decisively bearish in MEAN_REVERTING/NEUTRAL regime.
-            # Raised from 0.40 to 0.35 to require higher conviction for entries.
             det_action = "SELL"
             log.debug(f"[ENTRY_DEBUG] {symbol}: Strong-signal SELL: composite={composite:.2f}, regime={regime}, symbol_ok={symbol_ok}")
         else:
             det_action = "HOLD"
             log.debug(f"[ENTRY_DEBUG] {symbol}: HOLD: composite={composite:.2f}, regime={regime}, symbol_ok={symbol_ok}, buy_th={buy_th}, uptrend={uptrend}")
 
-        # LAYA VETO: strong System-1 "avoid" blocks a quant entry before it is sized.
-        # Veto-only by design -- laya can never create a BUY/SELL on its own.
-        if det_action in ("BUY", "SELL") and laya_interp and laya_interp["veto"]:
-            log.info(f"[LAYA_VETO] {symbol}: {det_action} blocked in {regime} "
-                     f"(avoid_p={laya_interp['avoid_prob']:.2f}, noul={laya_interp['noul']:.2f}, "
-                     f"composite={composite:.2f})")
-            return {"action": "HOLD", "confidence": 0,
-                    "reason": f"Laya veto (avoid_p={laya_interp['avoid_prob']:.2f})"}
+        # DEEP LAYA SUPERVISION: If an actionable signal was proposed, ensure Laya evaluates it directly
+        # Even if it takes a few seconds, decisions must be vetted and verified before capital execution.
+        import time as _time
+        if det_action in ("BUY", "SELL") and not laya_verdict and self.laya_client.enabled:
+            try:
+                log.info(f"[LAYA_SUPERVISION] Candidate {det_action} on {symbol} -> invoking blocking Laya supervision...")
+                laya_state = self._build_laya_state(symbol, exchange_id, price, price_list, regime,
+                                                    er, vol_ratio, trend_1h, trend_4h,
+                                                    quant_signals, composite, current_pos)
+                laya_verdict = self.laya_client.evaluate_blocking(laya_state, LAYA_ENTRY_QUESTIONS, timeout=8.0)
+                if laya_verdict:
+                    laya_interp = interpret_entry_verdict(laya_verdict, engine_regime=regime)
+                    with self.laya_client._lock:
+                        self.laya_client._cache[f"entry:{symbol}:{regime}"] = {"result": laya_verdict, "ts": _time.time()}
+                    log.info(f"[LAYA_SUPERVISION] Laya verdict for {symbol}: {laya_interp['summary']}")
+            except Exception as e:
+                log.warning(f"[LAYA_SUPERVISION] Synchronous Laya evaluation failed: {e}")
+
+        # LAYA VETO & SANITY CHECK: strong avoid probability or low coherence blocks execution
+        if det_action in ("BUY", "SELL") and laya_interp:
+            if laya_interp["veto"] or laya_interp.get("avoid_prob", 0) >= 0.65:
+                log.info(f"[LAYA_VETO] {symbol}: {det_action} blocked by Laya in {regime} "
+                         f"(avoid_p={laya_interp['avoid_prob']:.2f}, noul={laya_interp['noul']:.2f}, composite={composite:.2f})")
+                return {"action": "HOLD", "confidence": 0, "reason": f"Laya veto (avoid_p={laya_interp['avoid_prob']:.2f})"}
+            if laya_interp.get("noul", 1.0) < 0.40:
+                log.info(f"[LAYA_SANITY] {symbol}: {det_action} blocked due to low coherence/sanity "
+                         f"(noul={laya_interp['noul']:.2f})")
+                return {"action": "HOLD", "confidence": 0, "reason": f"Laya sanity low (noul={laya_interp['noul']:.2f})"}
 
         signal = {"action": det_action, "reason": f"Quant composite {composite:.2f} in {regime}"}
 
         # CHURN GUARD: Check if this symbol is in cooldown after a recent exit
-        # Prevents the enter->stale exit->immediate re-enter loop
-        import time as _time
         cooldown_key = f"entry_cooldown:{exchange_id}:{symbol}"
         cooldown_until = self.redis.get(cooldown_key)
         if cooldown_until:
@@ -312,28 +331,17 @@ class SupervisorAgent:
             signal = {"action": "HOLD", "confidence": 0, "reason": f"Churn limit breached ({exit_count} exits today)"}
             return signal
 
-        # 5. Meta-Learner Judge (sizes confidence around the quant action). NOTE: the feature key
-        # "llm_signal" is a LEGACY column name the trained XGBoost model expects -- it is fed the
-        # QUANT direction (quant_dir), NOT any LLM output. Renaming it would break the model's
-        # feature schema; the value is 100% quant-derived.
+        # 5. Meta-Learner Judge (sizes confidence around the quant action).
         quant_dir = 1.0 if det_action == "BUY" else (-1.0 if det_action == "SELL" else 0.0)
         meta_features = {**quant_signals, "llm_signal": quant_dir}
-        # Pass pre-computed RNN result from StrategyEnsemble to avoid double RNN call
         meta_confidence = self.meta_learner.predict_confidence(meta_features, rnn_result=self.strategy_ensemble.last_rnn_result)
-        # OVERRIDE: if composite signal is strong but meta-learner is miscalibrated,
-        # allow trade at minimum floor so entries aren't permanently suppressed.
-        # Only fires when the quant action is BUY/SELL (not HOLD) AND composite is strong.
-        min_conf_floor = 0.40
-        actionable = det_action in ("BUY", "SELL")
-        strong_signal = abs(composite - 0.5) >= 0.20  # composite >= 0.70 or <= 0.30
-        if meta_confidence < min_conf_floor and actionable and strong_signal:
-            log.info(f"[{exchange_id}] Meta-learner override: {meta_confidence:.2f} -> {min_conf_floor} (composite={composite:.2f}, action={det_action})")
-            meta_confidence = min_conf_floor
+        
+        # RESPECT META-LEARNER: Do NOT override low confidence with a floor!
+        # If the XGBoost model outputs low confidence, respect its protection.
         signal["confidence"] = meta_confidence
 
-        # LAYA conviction/regime blend: bounded multiplier on meta-confidence.
-        # Range ~[0.85, 1.08] -- can soften a weak setup or sharpen a coherent one,
-        # but the quant action itself is never flipped here (veto path handles blocks).
+        # LAYA conviction/regime blend: bounded multiplier on meta-confidence
+        actionable = det_action in ("BUY", "SELL")
         if laya_interp and actionable:
             before = signal["confidence"]
             signal["confidence"] = max(0.0, min(1.0, before * laya_interp["multiplier"]))
@@ -345,8 +353,7 @@ class SupervisorAgent:
                 log.debug(f"[LAYA] {symbol} confidence {before:.3f} -> "
                           f"{signal['confidence']:.3f} ({laya_interp['summary']})")
 
-        # SHADOW: case-based recall from vector memory. Purely observational -- logged for
-        # comparison against the quant decision, never read by anything decision-affecting.
+        # SHADOW: case-based recall from vector memory
         mem_context = {
             "current_price": float(price),
             "indicators": {"rsi_14": quant_signals.get("momentum", 0.5) * 100, "trend": trend_1h},
@@ -360,10 +367,10 @@ class SupervisorAgent:
         except Exception as e:
             log.debug(f"[SHADOW-MEMORY] recall skipped: {e}")
 
-        min_conf = 0.40  # Must match min_conf_floor used in override logic
-        log.debug(f"[DECISION_DEBUG] {symbol}: det_action={det_action}, signal_action={signal.get('action')}, confidence={signal.get('confidence', 0):.2f}, composite={composite:.2f}")
+        min_conf = float(self.cfg.get("min_confidence", 0.55))
+        log.debug(f"[DECISION_DEBUG] {symbol}: det_action={det_action}, signal_action={signal.get('action')}, confidence={signal.get('confidence', 0):.2f}, composite={composite:.2f}, min_conf={min_conf:.2f}")
         if signal["action"] == "HOLD" or signal["confidence"] < min_conf:
-            log.info(f"[{exchange_id}] Decision: HOLD {symbol} ({signal['confidence']:.2f}) | composite={composite:.2f} | regime={regime}")
+            log.info(f"[{exchange_id}] Decision: HOLD {symbol} (conf={signal['confidence']:.2f}, req={min_conf:.2f}) | composite={composite:.2f} | regime={regime}")
             try:
                 self.vector_memory.store_decision(symbol, mem_context, signal)
             except Exception as e:

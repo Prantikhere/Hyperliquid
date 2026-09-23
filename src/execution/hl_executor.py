@@ -38,10 +38,10 @@ async def run_parallel():
         log.error(f"Failed to init Autonomous Brain: {e}")
         brain = None
 
-    # Static whitelist fallback (matches strategy_config.json)
+    # Static whitelist fallback (matches strategy_config.json / STATIC_FALLBACK)
     fallback_symbols = [
         "ARB/USDT", "ETC/USDT", "PENDLE/USDT", "ONDO/USDT",
-        "OP/USDT", "INJ/USDT", "NEAR/USDT", "APT/USDT"
+        "OP/USDT", "INJ/USDT", "APT/USDT"
     ]
 
     def get_symbols():
@@ -53,9 +53,10 @@ async def run_parallel():
         return fallback_symbols
 
     print("Init Settlement...")
-    # Monitor ALL positions for profit booking (not just HL executor's symbols)
-    # This ensures positions from perp_ls, pairs_arb also get TP/SL management
-    settlement = SettlementAgent(owned_symbols=None, brain=brain)
+    # Restrict profit-booking to supervisor's own universe to prevent stomping on
+    # market-neutral spreads from perp_ls or pairs_arb (same wallet).
+    current_symbols = get_symbols()
+    settlement = SettlementAgent(owned_symbols=current_symbols, brain=brain)
     
     # Aggressive 60s interval
     interval = 60
@@ -67,6 +68,7 @@ async def run_parallel():
         while True:
             try:
                 symbols = get_symbols()
+                settlement.owned_symbols = set(symbols)  # Keep settlement universe synchronized
                 log.info(f"Trading {len(symbols)} symbols: {symbols}")
                 for symbol in symbols:
                     await supervisor.run_cycle(symbol, exchange_id="hyperliquid")

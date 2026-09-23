@@ -39,9 +39,10 @@ class DynamicWhitelist:
     }
     
     # Default static whitelist (fallback if dynamic scoring fails)
+    # Keep in sync with models_local/strategy_config.json symbol_whitelist
     STATIC_FALLBACK = [
         "ARB/USDT", "ETC/USDT", "PENDLE/USDT", "ONDO/USDT",
-        "OP/USDT", "INJ/USDT", "NEAR/USDT", "APT/USDT"
+        "OP/USDT", "INJ/USDT", "APT/USDT"
     ]
     
     # Minimum requirements for inclusion

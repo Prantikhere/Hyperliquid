@@ -108,7 +108,16 @@ class StrategyEnsemble:
             if not of_live:
                 w_tr, w_mom, w_of, w_rnn = 0.65, 0.25, 0.0, 0.10
             score = (w_tr * trend) + (w_mom * mom) + (w_of * of) + (w_rnn * rnn)
-        else:  # NEUTRAL: also fade RSI, mean reversion is the house edge
+        elif "HIGH_VOL" in r:
+            # High volatility expansion: follow dominant trend and momentum with RNN confirmation.
+            # Do NOT fade RSI here — counter-trend fading during volatility spikes causes severe drawdowns.
+            w_tr, w_mom, w_rnn = 0.50, 0.30, 0.20
+            if of_live:
+                w_tr, w_mom, w_of, w_rnn = 0.45, 0.25, 0.15, 0.15
+                score = (w_tr * trend) + (w_mom * mom) + (w_of * of) + (w_rnn * rnn)
+            else:
+                score = (w_tr * trend) + (w_mom * mom) + (w_rnn * rnn)
+        else:  # NEUTRAL: fade RSI, mean reversion is the house edge
             w_mr, w_of, w_mom, w_rnn = 0.40, 0.25, 0.25, 0.10
             mom = 1.0 - mom
             if not of_live:

@@ -200,14 +200,16 @@ class RNNTradePredictor:
             return False
         
         try:
-            # Prepare features
+            # Prepare features and keep track of terminal price index for each feature
             features = []
-            for i in range(30, len(price_data)):
+            feature_end_indices = []
+            for i in range(30, len(price_data) - 1):
                 feat = self._prepare_features(price_data[:i+1])
                 if feat is not None:
                     features.append(feat)
+                    feature_end_indices.append(i)
             
-            if len(features) < self.sequence_length + 10:
+            if len(features) < self.sequence_length + 5:
                 log.warning("Not enough sequences for training")
                 return False
             
@@ -218,19 +220,27 @@ class RNNTradePredictor:
             self.scaler_std = np.std(features, axis=0) + 1e-10
             features_normalized = (features - self.scaler_mean) / self.scaler_std
             
-            # Create sequences
-            X = self._create_sequences(features_normalized)
-            
-            # Create labels (1 if price went up, 0 if down)
-            # Labels correspond to the price at the END of each sequence
+            # Create temporally aligned sequences and forward return labels
+            X = []
             y = []
-            for i in range(self.sequence_length, len(price_data)):
-                # Next period return
-                next_return = (price_data[i] - price_data[i-1]) / price_data[i-1] if i > 0 else 0
-                y.append(1 if next_return > 0 else 0)
+            for s in range(len(features_normalized) - self.sequence_length):
+                seq = features_normalized[s:s + self.sequence_length]
+                # Terminal price index for the last bar in this sequence
+                terminal_idx = feature_end_indices[s + self.sequence_length - 1]
+                if terminal_idx + 1 < len(price_data):
+                    curr_p = float(price_data[terminal_idx])
+                    next_p = float(price_data[terminal_idx + 1])
+                    if curr_p > 0:
+                        forward_ret = (next_p - curr_p) / curr_p
+                        X.append(seq)
+                        y.append(1.0 if forward_ret > 0 else 0.0)
             
-            # Ensure y has same length as X
-            y = np.array(y[:len(X)])
+            if len(X) < 10:
+                log.warning("Too few aligned samples for RNN training")
+                return False
+            
+            X = np.array(X)
+            y = np.array(y)
             
             # Convert to tensors
             X_tensor = torch.FloatTensor(X)
@@ -246,16 +256,21 @@ class RNNTradePredictor:
             
             # Training loop
             self.model.train()
+            accuracy = torch.tensor(0.5)
             for epoch in range(epochs):
                 optimizer.zero_grad()
                 outputs = self.model(X_tensor)
                 loss = criterion(outputs, y_tensor)
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                 optimizer.step()
                 
                 if (epoch + 1) % 10 == 0:
                     accuracy = ((outputs > 0.5).float() == y_tensor).float().mean()
                     log.info(f"RNN Epoch {epoch+1}/{epochs}, Loss: {loss.item():.4f}, Accuracy: {accuracy.item():.4f}")
+            
+            # Put model in eval mode
+            self.model.eval()
             
             # Save model
             self._save_model()

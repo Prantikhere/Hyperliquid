@@ -83,11 +83,11 @@ class SettlementAgent:
                 
                 # Dynamic Volatility TP/SL Scaling (protective backstops)
                 tp_threshold, sl_threshold = self.regime_engine.get_dynamic_thresholds(price_list)
+                # Enforce minimum TP threshold of 2.5% to ensure positive expectancy over fees/slippage
+                tp_threshold = max(0.025, tp_threshold)
+                # Enforce protective stop loss ceiling between -1.5% and -2.5%
+                sl_threshold = max(-0.025, min(-0.015, sl_threshold))
 
-                # Primary exit for the mean-reversion edge: exit once the signal that opened the
-                # trade has reverted to neutral (0.5). Mirrors backtester.simulate exactly so live
-                # behaviour matches the backtested/validated exit. Long opened on a bullish (>0.5)
-                # signal -> exit when composite fades to <=0.5; short exits when it rises to >=0.5.
                 regime = self.regime_engine.detect_regime(price_list)
                 sig = self.strategy_ensemble.get_signals(price_list)
                 comp = self.strategy_ensemble.composite_score(sig, regime)
@@ -100,52 +100,47 @@ class SettlementAgent:
                 else:
                     roi = (avg_price - current_price) / avg_price if avg_price > 0 else 0
 
-                # LEARNING CHECK: Check if we should trade this symbol based on past failures
-                should_trade = learning_module.should_trade_symbol(symbol, exchange_id)
-                if not should_trade:
-                    log.warning(f"[LEARNING] Skipping {symbol} on {exchange_id}: Too many past failures")
-                    continue
+                # BAN CHECK (exit-management exempt): bans gate NEW entries via the
+                # brain (brain.get_trade_recommendation), NOT exit management. Skipping
+                # settlement for banned symbols orphans open positions (FIL incident:
+                # short left open because settlement skipped every cycle).
+                if symbol in getattr(learning_module, 'banned_symbols', set()):
+                    log.warning(f"[LEARNING] Managing open position on BANNED symbol {symbol} "
+                                f"on {exchange_id} (exit-only, re-entry still blocked)")
 
                 # Get adjusted parameters based on learnings
                 adjustments = learning_module.get_adjusted_parameters(symbol, exchange_id, regime)
                 tp_threshold *= adjustments["take_profit_multiplier"]
                 sl_threshold *= adjustments["stop_loss_multiplier"]
 
-                # Trend-following positions ride to TP/SL; only mean-reversion / neutral trades
-                # book at reversion-to-mean. Mirrors backtester.simulate exit model.
-                # Reversion exit must clear round-trip fees with margin (mirrors backtester
-                # REVERT_MIN_ROI). Booking a reversion below ~0.15% ROI is a net loss after fees.
                 from src.quant.backtester import REVERT_MIN_ROI
                 is_trend = "TRENDING" in (regime or "").upper()
 
                 # HARD STOP LOSS: Exit immediately if loss exceeds threshold
-                # This is the primary defense against large losses
                 hard_stop = roi <= sl_threshold
                 
-                # DYNAMIC STOP: Tighten if loss exceeds 2%
-                # Previous 3% was too loose, allowing losses to grow to -0.42% avg
+                # DYNAMIC STOP: Tighten if loss exceeds 2% in unfavorable regime
                 dynamic_sl = False
-                if roi < -0.02:  # Loss > 2% triggers dynamic stop
-                    dynamic_sl = roi <= max(sl_threshold, -0.02)  # Tighten to 2%
+                if roi < -0.02:
+                    dynamic_sl = roi <= max(sl_threshold, -0.02)
                 
-                # TRAILING STOP: Lock in gains as price moves in our favor
+                # TRAILING STOP: Only activate once meaningful profit is secured (> 2.5%)
                 peak_key = f"peak_roi:{exchange_id}:{symbol}"
                 peak_roi = float(self.redis.get(peak_key) or 0)
                 if roi > peak_roi:
                     self.redis.set(peak_key, roi, ex=14400)  # 4h TTL
                     peak_roi = roi
                 
-                # Trailing exit: only if ROI > 1% and drops 25% from peak
-                # Previous 15% was too aggressive, cutting profits at +0.3%
-                trailing_exit = (roi > 0.01) and (peak_roi > 0.01) and (roi < peak_roi * 0.75)
+                # Trailing exit: only if ROI > 2.5% and drops 20% from peak (locks in solid gains)
+                trailing_exit = (roi >= 0.025) and (peak_roi >= 0.025) and (roi < peak_roi * 0.80)
                 
                 # High profit lock: exit if ROI > 5% and drops 15% from peak
-                high_profit_exit = (roi > 0.05) and (peak_roi > 0.05) and (roi < peak_roi * 0.85)
+                high_profit_exit = (roi >= 0.05) and (peak_roi >= 0.05) and (roi < peak_roi * 0.85)
                 
-                # BREAKEVEN STOP: Only at very high profit (4%+) to let winners run
-                breakeven_stop = (roi > 0.04) and (peak_roi > 0.04) and (roi < 0.01)
+                # BREAKEVEN STOP: Protect capital once peak exceeded 2.5%, exit if it falls back to +0.8% (covers fees)
+                breakeven_stop = (peak_roi >= 0.025) and (roi < 0.008) and (roi > -0.005)
 
-                # TIME-BASED EXIT: Cut stale positions
+                # TIME-BASED EXIT: Cut stale positions held > 4h with net loss
                 import time
                 position_age_key = f"position_age:{exchange_id}:{symbol}"
                 position_age = float(self.redis.get(position_age_key) or 0)
@@ -154,25 +149,28 @@ class SettlementAgent:
                     position_age = time.time()
                 held_hours = (time.time() - position_age) / 3600
 
-                reverted = (not is_trend) and (roi > REVERT_MIN_ROI) and (roi > 0.005) and (held_hours > 0.5) and (
-                    (side == "LONG" and comp <= 0.5) or (side == "SHORT" and comp >= 0.5)
+                # REVERSION EXIT: Must clear at least 2.0% profit before exiting on mean reversion!
+                # Micro-exits at +0.5% destroyed math expectancy. Winners must pay for stop losses.
+                reverted = (not is_trend) and (roi >= 0.020) and (held_hours > 0.5) and (
+                    (side == "LONG" and comp <= 0.45) or (side == "SHORT" and comp >= 0.55)
                 )
 
-                # MARKET REGIME-BASED EXITS
+                # MARKET REGIME-BASED EXITS (only with confirmed profit)
                 regime_unfavorable = False
                 if side == "LONG" and "HIGH_VOL" in (regime or "").upper():
                     regime_unfavorable = True
                 elif side == "SHORT" and "TRENDING" in (regime or "").upper():
                     regime_unfavorable = True
 
-                # MOMENTUM EXIT: Exit when signal weakens
-                momentum_fading = (roi > 0.01) and (comp < 0.35)
+                # MOMENTUM EXIT: Exit when momentum fades, but ONLY after locking in at least 2.0% profit
+                momentum_fading = (roi >= 0.020) and (comp < 0.35 if side == "LONG" else comp > 0.65)
 
-                stale_position = (held_hours > 4) and (roi < 0)  # 4h with negative ROI = stale (was 8h)
+                # Stale position exit: cut if held > 4h with loss
+                stale_position = (held_hours > 4) and (roi < -0.01)
 
                 log.info(f"[SETTLEMENT] {exchange_id} {symbol} {side} | ROI: {roi*100:.2f}% | Peak: {peak_roi*100:.2f}% | TP: {tp_threshold*100:.2f}% | SL: {sl_threshold*100:.2f}% | comp: {comp:.2f} | regime: {regime} | held: {held_hours:.1f}h")
 
-                # PRIORITY ORDER: Hard stop > Dynamic stop > Profit locks > Trailing > Other exits
+                # PRIORITY ORDER: Hard stop > Dynamic stop > Profit target > High profit lock > Trailing > Breakeven > Reversion > Other exits
                 decision = None
                 order_type = "MARKET"
                 if hard_stop:
@@ -184,31 +182,31 @@ class SettlementAgent:
                     decision = "SELL" if side == "LONG" else "BUY"
                     order_type = "MARKET"
                 elif roi >= tp_threshold:
-                    log.info(f"$$$ PROFIT TARGET HIT for {symbol} on {exchange_id}. Booking Profit.")
+                    log.info(f"$$$ PROFIT TARGET HIT for {symbol} on {exchange_id} (ROI={roi*100:.2f}%). Booking Profit.")
                     decision = "SELL" if side == "LONG" else "BUY"
                     order_type = "MARKET"
                 elif high_profit_exit:
                     log.info(f"~~~ HIGH PROFIT LOCK for {symbol} on {exchange_id} (peak={peak_roi*100:.2f}%, now={roi*100:.2f}%). Locking in strong profit.")
                     decision = "SELL" if side == "LONG" else "BUY"
                     order_type = "MARKET"
-                elif breakeven_stop:
-                    log.info(f"~~~ BREAKEVEN STOP for {symbol} on {exchange_id} (peak={peak_roi*100:.2f}%, now={roi*100:.2f}%). Protecting capital.")
-                    decision = "SELL" if side == "LONG" else "BUY"
-                    order_type = "MARKET"
                 elif trailing_exit:
                     log.info(f"~~~ TRAILING EXIT for {symbol} on {exchange_id} (peak={peak_roi*100:.2f}%, now={roi*100:.2f}%). Locking profit.")
                     decision = "SELL" if side == "LONG" else "BUY"
                     order_type = "MARKET"
-                elif reverted and roi > 0:
-                    log.info(f"~~~ REVERSION EXIT for {symbol} on {exchange_id} (comp={comp:.2f}). Booking reversion profit.")
+                elif breakeven_stop:
+                    log.info(f"~~~ BREAKEVEN STOP for {symbol} on {exchange_id} (peak={peak_roi*100:.2f}%, now={roi*100:.2f}%). Protecting capital above fees.")
                     decision = "SELL" if side == "LONG" else "BUY"
                     order_type = "MARKET"
-                elif regime_unfavorable and roi > 0.015:
+                elif reverted:
+                    log.info(f"~~~ REVERSION EXIT for {symbol} on {exchange_id} (comp={comp:.2f}, ROI={roi*100:.2f}%). Booking reversion profit.")
+                    decision = "SELL" if side == "LONG" else "BUY"
+                    order_type = "MARKET"
+                elif regime_unfavorable and roi >= 0.020:
                     log.info(f"~~~ REGIME EXIT for {symbol} on {exchange_id} (regime={regime}). Booking profit before regime change impact.")
                     decision = "SELL" if side == "LONG" else "BUY"
                     order_type = "MARKET"
                 elif momentum_fading:
-                    log.info(f"~~~ MOMENTUM EXIT for {symbol} on {exchange_id} (comp={comp:.2f}). Booking profit before momentum dies.")
+                    log.info(f"~~~ MOMENTUM EXIT for {symbol} on {exchange_id} (comp={comp:.2f}, ROI={roi*100:.2f}%). Booking profit before momentum dies.")
                     decision = "SELL" if side == "LONG" else "BUY"
                     order_type = "MARKET"
                 elif stale_position:
@@ -243,7 +241,12 @@ class SettlementAgent:
                         if order.get('symbol') == mapped_symbol:
                             try:
                                 log.info(f"[SETTLEMENT] Canceling stale open order {order.get('id')} for {symbol} on {exchange_id}...")
-                                await self.execution_agent.multi_client.exchanges[exchange_id].cancel_order(order.get('id'), mapped_symbol)
+                                if exchange_id == "hyperliquid":
+                                    # SDK signature: cancel_order(coin, oid) -- exchanges dict is None for HL
+                                    coin = mapped_symbol.replace("/USDT", "")
+                                    self.execution_agent.multi_client.hl_sdk.cancel_order(coin, order.get('id'))
+                                else:
+                                    await self.execution_agent.multi_client.exchanges[exchange_id].cancel_order(order.get('id'), mapped_symbol)
                             except Exception as ex_cancel:
                                 log.error(f"Failed to cancel order {order.get('id')} on {exchange_id}: {ex_cancel}")
 
@@ -324,6 +327,23 @@ class SettlementAgent:
                                              f"severity={forensics.severity} lesson={forensics.lesson[:60]}")
                             except Exception as brain_err:
                                 log.error(f"[BRAIN] Forensics failed: {brain_err}")
+
+                        # Direct online learning feedback to Laya decision engine
+                        if laya_entry and laya_entry.get("decision_id"):
+                            try:
+                                from src.intelligence.laya_client import get_laya_client
+                                laya_c = get_laya_client()
+                                laya_c.submit_feedback(
+                                    decision_id=laya_entry["decision_id"],
+                                    question_id="entry",
+                                    ground_truth=("enter" if roi > 0 else "avoid"),
+                                    reward=float(roi),
+                                    target_type="choice",
+                                    notes=f"Realized ROI: {roi*100:.2f}%, held {held_hours:.1f}h"
+                                )
+                                log.info(f"[LAYA_FEEDBACK] Ground truth feedback sent to Laya for {symbol}: reward={roi*100:.2f}%")
+                            except Exception as ex_laya_fb:
+                                log.debug(f"[LAYA_FEEDBACK] Feedback submission error: {ex_laya_fb}")
                     else:
                         # Increment failed exit counter
                         failed_exit_key = f"failed_exits:{exchange_id}:{symbol}"
@@ -334,9 +354,49 @@ class SettlementAgent:
         except Exception as e:
             log.error(f"Settlement Cycle Error: {e}")
 
+    def _sync_redis_position_state(self, exchange_id, actual_symbols):
+        """Rebuild Redis position counters from on-chain truth after reconcile.
+
+        execution_agent only incr/decrs these keys on successful orders; failed
+        exits, crashes, or manual closes leave them stale (OP phantom position,
+        open_positions_count vs DB mismatch, position_age for closed symbols).
+        """
+        try:
+            # Rebuild per-symbol flags for this exchange
+            prefix = f"symbol_positions:{exchange_id}:"
+            for key in self.redis.scan_iter(match=f"{prefix}*"):
+                symbol = key[len(prefix):]
+                if symbol in actual_symbols:
+                    self.redis.set(key, 1)
+                else:
+                    self.redis.delete(key)
+
+            # Drop position age / peak ROI for symbols no longer open
+            # (so the next entry starts with a fresh hold clock and peak)
+            for pattern in (f"position_age:{exchange_id}:*", f"peak_roi:{exchange_id}:*"):
+                for key in self.redis.scan_iter(match=pattern):
+                    symbol = key.rsplit(":", 1)[-1]
+                    if symbol not in actual_symbols:
+                        self.redis.delete(key)
+
+            # Rebuild the global open-position count from ALL exchanges' flags
+            total = 0
+            for key in self.redis.scan_iter(match="symbol_positions:*"):
+                try:
+                    total += int(self.redis.get(key) or 0)
+                except (TypeError, ValueError):
+                    pass
+            self.redis.set("open_positions_count", max(0, total))
+        except Exception as e:
+            log.error(f"Redis position-state sync failed for {exchange_id}: {e}")
+
     async def reconcile_all(self):
-        """Sync DB positions with actual exchange state."""
-        for eid in ["hyperliquid", "bingx"]:
+        """Sync DB positions with actual exchange state.
+
+        Hyperliquid only: BingX API key is invalid (timestamp error 109400)
+        and there are no BingX positions -- reconciling it just spams errors.
+        """
+        for eid in ["hyperliquid"]:
             try:
                 # Get DB positions before reconciliation to detect closed positions
                 db_positions_before = self.db.get_positions()
@@ -376,6 +436,9 @@ class SettlementAgent:
 
                 # Check for closed positions and cancel any resting orders for them
                 actual_symbols = {p['symbol'] for p in sync_list}
+
+                # Keep Redis counters aligned with on-chain truth
+                self._sync_redis_position_state(eid, actual_symbols)
                 
                 # Fetch all open orders once per exchange for stale check
                 try:
@@ -441,7 +504,11 @@ class SettlementAgent:
                             if order.get('symbol') == mapped_symbol:
                                 try:
                                     log.info(f"Reconciliation: Cancelling stale order {order['id']} for {symbol} on {eid}")
-                                    await self.execution_agent.multi_client.exchanges[eid].cancel_order(order['id'], mapped_symbol)
+                                    if eid == "hyperliquid":
+                                        coin = mapped_symbol.replace("/USDT", "")
+                                        self.execution_agent.multi_client.hl_sdk.cancel_order(coin, order['id'])
+                                    else:
+                                        await self.execution_agent.multi_client.exchanges[eid].cancel_order(order['id'], mapped_symbol)
                                 except Exception as ex:
                                     log.error(f"Failed to cancel resting orders for closed position {symbol} on {eid}: {ex}")
 
@@ -455,7 +522,11 @@ class SettlementAgent:
                         order_id = order.get('id')
                         log.warning(f"[STALE_ORDER] Order {order_id} for {symbol} on {eid} is older than 2 minutes. Cancelling...")
                         try:
-                            await self.execution_agent.multi_client.exchanges[eid].cancel_order(order_id, symbol)
+                            if eid == "hyperliquid":
+                                coin = (symbol or "").replace("/USDT", "")
+                                self.execution_agent.multi_client.hl_sdk.cancel_order(coin, order_id)
+                            else:
+                                await self.execution_agent.multi_client.exchanges[eid].cancel_order(order_id, symbol)
                         except Exception as ex:
                             log.error(f"Failed to cancel stale order {order_id} on {eid}: {ex}")
 

@@ -49,10 +49,12 @@ class RiskManager:
 
         log.debug(f"[RISK_CALC] bankroll=${self.bankroll:.2f}, risk_pct={risk_pct:.4f}, leverage={leverage:.1f}, position=${position_usd:.2f}, max_pos=${self.max_position_usd:.2f}, max_risk=${max_risk_usd:.2f}")
 
+        # Do NOT zero out below the $10 exchange minimum here. RiskAgent applies
+        # an $11 floor after regime/session/Sortino scaling; returning 0 made
+        # that floor unreachable and permanently blocked every entry.
         if position_usd < 10.0:
-            log.debug(f"[RISK_CALC] Position ${position_usd:.2f} < $10 minimum, returning 0")
-            return 0
-        
+            log.debug(f"[RISK_CALC] Position ${position_usd:.2f} < $10 exchange min (RiskAgent will floor if viable)")
+
         return position_usd
 
     def check_risk_limits(self):

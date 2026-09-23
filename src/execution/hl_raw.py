@@ -40,12 +40,12 @@ class HlSdkClient:
         return float(mids.get(coin, 0))
 
     def _round_price(self, coin: str, price: float) -> float:
-        """Round price to valid tick size. HL perps use 2 decimal places."""
-        asset_id = self.coin_to_asset.get(coin)
-        if asset_id is not None and asset_id >= 10000:
-            # Spot uses more decimals
-            return round(price, 8)
-        return round(price, 2)
+        """Round price to valid tick size and sig figs for HL wire without float_to_wire errors."""
+        sz_dec = self.coin_sz_decimals.get(coin, 0)
+        max_decimals = max(0, 6 - sz_dec)
+        formatted = f"{price:.5g}"
+        val = round(float(formatted), min(max_decimals, 5))
+        return round(val, 6)
 
     def _round_qty(self, coin: str, qty: float) -> float:
         """Round quantity to valid szDecimals for the asset."""

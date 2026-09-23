@@ -39,6 +39,9 @@ class RegimeRecord:
     # What didn't work
     losing_strategies: List[str] = field(default_factory=list)
     losing_setups: List[Dict] = field(default_factory=list)
+    # Cumulative ROI per symbol within this regime record. Persisted so
+    # best/worst ranking reflects the whole window, not just the last trade.
+    symbol_roi_totals: Dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -70,6 +73,11 @@ class RegimeMemory:
         self.current_regime: str = "UNKNOWN"
         self.regime_start_time: float = time.time()
         self._load_memory()
+        # Migrate legacy records so prefer/avoid insights aren't all suppressed
+        try:
+            self.backfill_symbol_roi_totals()
+        except Exception as e:
+            log.debug(f"[REGIME_MEMORY] backfill skipped: {e}")
 
     def _load_memory(self):
         """Load regime memory from disk."""
@@ -78,6 +86,7 @@ class RegimeMemory:
                 with open(self.memory_file, 'r') as f:
                     data = json.load(f)
                 for key, vals in data.get("records", {}).items():
+                    # Older files lack symbol_roi_totals -> dataclass default fills it
                     self.records[key] = RegimeRecord(**vals)
                 log.info(f"[REGIME_MEMORY] Loaded {len(self.records)} regime records")
             except Exception as e:
@@ -105,6 +114,7 @@ class RegimeMemory:
                 "worst_symbol": record.worst_symbol,
                 "winning_strategies": record.winning_strategies,
                 "losing_strategies": record.losing_strategies,
+                "symbol_roi_totals": record.symbol_roi_totals,
             }
         with open(self.memory_file, 'w') as f:
             json.dump(data, f, indent=2)
@@ -145,11 +155,19 @@ class RegimeMemory:
             if strategy not in record.losing_strategies:
                 record.losing_strategies.append(strategy)
 
-        # Track best/worst symbols
-        symbol_rois = {}
+        # Track best/worst symbols from CUMULATIVE per-symbol ROI in this record.
+        # (Previously symbol_rois was rebuilt from only the current trade each call,
+        # so best_symbol == worst_symbol always, and _generate_insights emitted both
+        # prefer AND avoid for the same symbol -- the HBAR/NEUTRAL contradiction.)
+        if not isinstance(getattr(record, 'symbol_roi_totals', None), dict):
+            record.symbol_roi_totals = {}
+        record.symbol_roi_totals[symbol] = record.symbol_roi_totals.get(symbol, 0.0) + roi
+        symbol_rois = dict(record.symbol_roi_totals)
+        # Optional caller snapshot can extend the ranking universe (non-current symbols)
         if market_context and "symbol_rois" in market_context:
-            symbol_rois = market_context["symbol_rois"]
-        symbol_rois[symbol] = roi
+            for k, v in market_context["symbol_rois"].items():
+                if k != symbol:
+                    symbol_rois.setdefault(k, float(v))
         if symbol_rois:
             record.best_symbol = max(symbol_rois, key=symbol_rois.get)
             record.worst_symbol = min(symbol_rois, key=symbol_rois.get)
@@ -202,25 +220,31 @@ class RegimeMemory:
                 evidence=[f"{record.total_trades} trades", f"{record.losses} losses"]
             ))
 
-        # Insight 2: Best/worst symbols
-        if record.best_symbol:
+        # Insight 2: Best/worst symbols — only prefer symbols that made money,
+        # only avoid symbols that lost money. When best == worst (single-symbol
+        # window) exactly one of the two can fire, never both.
+        roi_totals = getattr(record, 'symbol_roi_totals', None) or {}
+        best_total = roi_totals.get(record.best_symbol, 0.0)
+        worst_total = roi_totals.get(record.worst_symbol, 0.0)
+
+        if record.best_symbol and best_total > 0:
             self.insights.append(RegimeInsight(
                 regime=record.regime,
                 insight_type="prefer",
                 description=f"Trade {record.best_symbol} in {record.regime}",
                 confidence=0.7,
                 symbol=record.best_symbol,
-                evidence=["Historical best performer in this regime"]
+                evidence=[f"Historical best in this regime (cum ROI {best_total:+.2f}%)"]
             ))
 
-        if record.worst_symbol:
+        if record.worst_symbol and worst_total < 0:
             self.insights.append(RegimeInsight(
                 regime=record.regime,
                 insight_type="avoid",
                 description=f"Avoid {record.worst_symbol} in {record.regime}",
                 confidence=0.7,
                 symbol=record.worst_symbol,
-                evidence=["Historical worst performer in this regime"]
+                evidence=[f"Historical worst in this regime (cum ROI {worst_total:+.2f}%)"]
             ))
 
         # Insight 3: Strategy preferences
@@ -280,6 +304,7 @@ class RegimeMemory:
             "total_roi": f"{record.total_roi:.4f}",
             "best_symbol": record.best_symbol,
             "worst_symbol": record.worst_symbol,
+            "symbol_roi_totals": record.symbol_roi_totals,
         })
         self.redis.expire(key, 86400 * 30)
 
@@ -338,10 +363,39 @@ class RegimeMemory:
             "total_insights": len(self.insights),
             "regime_performance": {},
         }
-        
+
         # Performance by regime
         regimes = set(r.regime for r in self.records.values())
         for regime in regimes:
             report["regime_performance"][regime] = self.get_regime_performance(regime)
-        
+
         return report
+
+    def backfill_symbol_roi_totals(self):
+        """One-time migration: rebuild symbol_roi_totals for records loaded from
+        older files that predate the field (all-zero totals would suppress every
+        prefer/avoid insight). Uses total_roi as a floor proxy when per-symbol
+        breakdown is unavailable — only fills empty maps for single-symbol records.
+        """
+        changed = False
+        for record in self.records.values():
+            if not getattr(record, "symbol_roi_totals", None):
+                if len(record.symbols_traded) == 1:
+                    record.symbol_roi_totals = {record.symbols_traded[0]: record.total_roi}
+                    changed = True
+                elif record.best_symbol or record.worst_symbol:
+                    # Multi-symbol legacy record: seed both ends from total so
+                    # ranking is at least sign-consistent until new trades accumulate
+                    seed = {}
+                    if record.best_symbol:
+                        seed[record.best_symbol] = max(record.total_roi, 0.01)
+                    if record.worst_symbol and record.worst_symbol not in seed:
+                        seed[record.worst_symbol] = min(record.total_roi, -0.01)
+                    if record.worst_symbol == record.best_symbol:
+                        seed[record.best_symbol] = record.total_roi
+                    record.symbol_roi_totals = seed
+                    changed = True
+        if changed:
+            self._save_memory()
+            log.info("[REGIME_MEMORY] Backfilled symbol_roi_totals for legacy records")
+        return changed

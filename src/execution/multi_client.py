@@ -58,10 +58,13 @@ class MultiExchangeClient:
             if oracle_px <= 0:
                 return {"error": f"Cannot get oracle price for {coin}"}
             
-            # For exits (reduce_only), use oracle price directly
-            # For entries, add small slippage in the right direction
+            # For exits (reduce_only), cross the spread slightly: resting at the
+            # exact oracle price may never fill on thin testnet books (FIL close
+            # hung 30s+ at oracle, filled instantly 0.3% through it). Still well
+            # inside HL's ~2% oracle band.
+            # For entries, keep small slippage in the trade direction.
             if reduce_only:
-                limit_px = oracle_px  # Exit at oracle
+                limit_px = oracle_px * (1.003 if is_buy else 0.997)
             elif is_buy:
                 limit_px = oracle_px * 1.005  # Buy slightly above oracle
             else:
