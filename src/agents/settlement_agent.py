@@ -296,6 +296,14 @@ class SettlementAgent:
                         # AUTONOMOUS BRAIN: Feed trade outcome for learning
                         if self.brain:
                             try:
+                                # Laya entry verdict stashed at entry -> lets forensics
+                                # send /feedback (ground truth) back to the decision engine.
+                                laya_entry = None
+                                try:
+                                    raw = self.redis.get(f"laya_entry:{exchange_id}:{symbol}")
+                                    laya_entry = json.loads(raw) if raw else None
+                                except Exception:
+                                    laya_entry = None
                                 trade_data = {
                                     "symbol": symbol,
                                     "side": side,
@@ -308,6 +316,7 @@ class SettlementAgent:
                                     "meta_confidence": comp,
                                     "quant_action": decision,
                                     "strategy": "composite",
+                                    "metadata": {"laya": laya_entry} if laya_entry else {},
                                 }
                                 forensics = self.brain.on_trade_exit(trade_data)
                                 if forensics:
@@ -401,6 +410,12 @@ class SettlementAgent:
                                 # AUTONOMOUS BRAIN: Feed reconciled trade for learning
                                 if self.brain:
                                     try:
+                                        laya_entry = None
+                                        try:
+                                            raw = self.redis.get(f"laya_entry:{eid}:{symbol}")
+                                            laya_entry = json.loads(raw) if raw else None
+                                        except Exception:
+                                            laya_entry = None
                                         trade_data = {
                                             "symbol": symbol,
                                             "side": side,
@@ -413,6 +428,7 @@ class SettlementAgent:
                                             "meta_confidence": 0.5,
                                             "quant_action": "HOLD",
                                             "strategy": "reconciliation",
+                                            "metadata": {"laya": laya_entry} if laya_entry else {},
                                         }
                                         self.brain.on_trade_exit(trade_data)
                                     except Exception as brain_err:

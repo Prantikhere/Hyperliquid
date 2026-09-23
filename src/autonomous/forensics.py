@@ -17,6 +17,10 @@ from dataclasses import dataclass, asdict
 
 log = logging.getLogger(__name__)
 
+from src.intelligence.laya_client import (
+    get_laya_client, LAYA_FORENSICS_QUESTIONS, extract_failure_mode,
+)
+
 @dataclass
 class TradeForensics:
     """Complete forensic analysis of a closed trade."""
@@ -56,6 +60,8 @@ class PostTradeForensics:
         self.redis = redis_client
         self.learning_module = learning_module
         self.lessons_file = "data/trade_lessons.jsonl"
+        self.opinions_file = "data/laya_opinions.jsonl"
+        self.laya_client = get_laya_client()
         self._ensure_lessons_file()
 
     def _ensure_lessons_file(self):
@@ -85,6 +91,53 @@ class PostTradeForensics:
 
         # Classify failure mode
         failure_mode, factors = self._classify_failure_mode(trade_data)
+
+        # LAYA second opinion (background, growth artifact): appends a
+        # rules-vs-laya comparison to data/laya_opinions.jsonl for future
+        # calibration of the classifier. Non-blocking; failures are silent.
+        try:
+            state = {"symbol": trade_data.get("symbol", ""),
+                     "body": self._forensics_state(trade_data)}
+            self.laya_client.evaluate(
+                state,
+                LAYA_FORENSICS_QUESTIONS,
+                cache_key=f"forensic:{trade_data.get('trade_id', '')}:{time.time_ns()}",
+                sink=lambda result, st, _td=trade_data, _fm=failure_mode:
+                    self._append_laya_opinion(result, _td, _fm),
+                store=False,
+            )
+        except Exception as e:
+            log.debug(f"[LAYA] forensics opinion skipped: {e}")
+
+        # LAYA CLOSED-LOOP LEARNING: send the realized outcome back as ground
+        # truth for the ENTRY verdict Laya gave when this trade was opened.
+        try:
+            meta = trade_data.get("metadata") or {}
+            if isinstance(meta, str):
+                meta = json.loads(meta)
+            laya_entry = (meta or {}).get("laya") or {}
+            decision_id = laya_entry.get("decision_id")
+            if decision_id:
+                roi_pct = trade_data.get("roi_pct", 0)
+                ground_truth = "enter" if roi_pct > 0 else "avoid"
+                laya_choice = laya_entry.get("entry")
+                reward = 1.0 if laya_choice == ground_truth else -1.0
+                sent = self.laya_client.submit_feedback(
+                    decision_id=decision_id,
+                    question_id="entry",
+                    ground_truth=ground_truth,
+                    reward=reward,
+                    target_type="choice",
+                    notes=(f"{trade_data.get('symbol')} {trade_data.get('side')} "
+                           f"roi={roi_pct:.2f}% mode={failure_mode} "
+                           f"laya={laya_choice} agreed={reward > 0}"),
+                )
+                if sent:
+                    log.info(f"[LAYA_FEEDBACK] entry verdict for {trade_data.get('symbol')} "
+                             f"updated: truth={ground_truth} laya={laya_choice} "
+                             f"reward={reward:+.0f} (roi={roi_pct:.2f}%)")
+        except Exception as e:
+            log.debug(f"[LAYA_FEEDBACK] entry feedback skipped: {e}")
 
         # Generate lesson
         lesson = self._generate_lesson(trade_data, failure_mode, factors)
@@ -194,7 +247,91 @@ class PostTradeForensics:
             factors.append("general_inefficiency")
             return "SIZING", factors
 
+        # 6. Rules inconclusive: let Laya's System-1 classifier supply the mode.
+        # Blocking but short-timeout and fail-open -- service down keeps UNKNOWN.
+        laya_mode = self._laya_classify_failure(trade_data)
+        if laya_mode:
+            return laya_mode
+
         return "UNKNOWN", factors
+
+    @staticmethod
+    def _forensics_state(trade_data: Dict) -> str:
+        """Compact one-paragraph summary of a closed trade for laya."""
+        try:
+            meta = trade_data.get("metadata") or {}
+            if isinstance(meta, str):
+                try:
+                    meta = json.loads(meta)
+                except Exception:
+                    meta = {}
+            laya_meta = meta.get("laya") if isinstance(meta, dict) else None
+            if isinstance(laya_meta, dict):
+                laya_desc = laya_meta.get("summary") or laya_meta.get("entry") or "NA"
+            else:
+                laya_desc = laya_meta or "NA"
+            return (
+                f"Trade {trade_data.get('symbol', '?')} {trade_data.get('side', '?')} "
+                f"roi={trade_data.get('roi_pct', 0):.2f}% "
+                f"held={trade_data.get('held_seconds', 0) / 3600:.2f}h "
+                f"entry_regime={trade_data.get('regime_at_entry', 'UNKNOWN')} "
+                f"exit_regime={trade_data.get('regime_at_exit', 'UNKNOWN')} "
+                f"meta_confidence={trade_data.get('meta_confidence', 0):.2f} "
+                f"quant_action={trade_data.get('quant_action', '?')} "
+                f"laya_entry={laya_desc}"
+            )
+        except Exception:
+            return f"{trade_data.get('symbol', '?')} closed with roi={trade_data.get('roi_pct', 0)}%"
+
+    def _laya_classify_failure(self, trade_data: Dict) -> Optional[Tuple[str, List[str]]]:
+        """Blocking laya failure-mode classification with fail-open semantics."""
+        state = {"symbol": trade_data.get("symbol", ""),
+                 "body": self._forensics_state(trade_data)}
+        verdict = self.laya_client.evaluate_blocking(
+            state, LAYA_FORENSICS_QUESTIONS, timeout=15.0)
+        parsed = extract_failure_mode(verdict)
+        if parsed and parsed["prob"] >= 0.50 and parsed["mode"] != "UNKNOWN":
+            log.info(f"[LAYA_FORENSICS] {trade_data.get('symbol')} classified as "
+                     f"{parsed['mode']} (p={parsed['prob']:.2f}) -- rules were inconclusive")
+            return parsed["mode"], [f"laya_classified_p{parsed['prob']:.2f}"]
+        return None
+
+    def _append_laya_opinion(self, result: Dict, trade_data: Dict, rules_mode: str):
+        """Worker-thread sink: append laya's second opinion next to the rules verdict."""
+        parsed = extract_failure_mode(result)
+        line = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "trade_id": trade_data.get("trade_id", ""),
+            "symbol": trade_data.get("symbol", ""),
+            "side": trade_data.get("side", ""),
+            "roi_pct": trade_data.get("roi_pct", 0),
+            "held_hours": round(trade_data.get("held_seconds", 0) / 3600, 3),
+            "regime_at_entry": trade_data.get("regime_at_entry", "UNKNOWN"),
+            "meta_confidence": trade_data.get("meta_confidence", 0),
+            "rules_mode": rules_mode,
+            "laya_mode": parsed["mode"] if parsed else None,
+            "laya_prob": round(parsed["prob"], 4) if parsed else None,
+            "agree": bool(parsed) and parsed["mode"] == rules_mode,
+        }
+        os.makedirs(os.path.dirname(self.opinions_file), exist_ok=True)
+        with open(self.opinions_file, "a") as f:
+            f.write(json.dumps(line) + "\n")
+
+        # Teacher feedback: when the rules produced a definitive mode, send it
+        # as ground truth so laya's failure classifier calibrates to our data.
+        if parsed and rules_mode and rules_mode != "UNKNOWN":
+            decision_id = (result or {}).get("decision_id")
+            if decision_id:
+                reward = 1.0 if parsed["mode"] == rules_mode else -1.0
+                self.laya_client.submit_feedback(
+                    decision_id=decision_id,
+                    question_id="failure_mode",
+                    ground_truth=rules_mode,
+                    reward=reward,
+                    target_type="choice",
+                    notes=(f"{trade_data.get('symbol')} roi={trade_data.get('roi_pct', 0):.2f}% "
+                           f"laya={parsed['mode']} rules={rules_mode}"),
+                )
 
     def _generate_lesson(self, trade_data: Dict, failure_mode: str, factors: List[str]) -> str:
         """Generate a human-readable lesson from the analysis."""

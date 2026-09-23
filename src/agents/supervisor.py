@@ -13,6 +13,9 @@ from src.utils.db import DatabaseManager
 from src.quant.regime_engine import RegimeEngine
 from src.quant.multi_strategy import StrategyEnsemble, RiskSurface
 from src.intelligence.ensemble_model import EnsembleMetaLearner
+from src.intelligence.laya_client import (
+    get_laya_client, LAYA_ENTRY_QUESTIONS, interpret_entry_verdict, LAYA_VETO_PROB,
+)
 from src.quant.anomaly_detector import AnomalyDetector
 from src.quant.learning_module import learning_module
 from src.utils.logger import log
@@ -35,6 +38,7 @@ class SupervisorAgent:
         self.vector_memory = VectorMemory()  # shadow-only: recall/store, never touches decisions
         self.anomaly_detector = AnomalyDetector()  # shadow-only: logs outlier flag, never gates
         self.learning_module = learning_module  # Expose for brain feedback loop
+        self.laya_client = get_laya_client()  # System-1 cross-check: veto/adjust only
         self.cfg = self._load_strategy_config()
 
     def _acquire_singleton_lock(self):
@@ -232,6 +236,25 @@ class SupervisorAgent:
             log.warning(f"[DEAD_SYMBOL] {symbol} on {exchange_id} is blacklisted. Skipping.")
             return {"action": "HOLD", "confidence": 0, "reason": f"Dead symbol: {symbol}"}
 
+        # LAYA System-1 cross-check: cached/background verdict (zero added latency).
+        # Used ONLY to veto or scale the quant decision -- never to invent entries
+        # (quant-only decision policy preserved). First cycle warms the cache.
+        laya_verdict = None
+        laya_interp = None
+        try:
+            if symbol_ok:
+                laya_verdict = self.laya_client.evaluate(
+                    self._build_laya_state(symbol, exchange_id, price, price_list, regime,
+                                           er, vol_ratio, trend_1h, trend_4h,
+                                           quant_signals, composite, current_pos),
+                    LAYA_ENTRY_QUESTIONS,
+                    cache_key=f"entry:{symbol}:{regime}",
+                )
+                if laya_verdict:
+                    laya_interp = interpret_entry_verdict(laya_verdict, engine_regime=regime)
+        except Exception as e:
+            log.debug(f"[LAYA] evaluate skipped: {e}")
+
         if composite > buy_th and uptrend and symbol_ok:
             det_action = "BUY"
         elif composite < sell_th and not uptrend and symbol_ok:
@@ -249,6 +272,15 @@ class SupervisorAgent:
         else:
             det_action = "HOLD"
             log.debug(f"[ENTRY_DEBUG] {symbol}: HOLD: composite={composite:.2f}, regime={regime}, symbol_ok={symbol_ok}, buy_th={buy_th}, uptrend={uptrend}")
+
+        # LAYA VETO: strong System-1 "avoid" blocks a quant entry before it is sized.
+        # Veto-only by design -- laya can never create a BUY/SELL on its own.
+        if det_action in ("BUY", "SELL") and laya_interp and laya_interp["veto"]:
+            log.info(f"[LAYA_VETO] {symbol}: {det_action} blocked in {regime} "
+                     f"(avoid_p={laya_interp['avoid_prob']:.2f}, noul={laya_interp['noul']:.2f}, "
+                     f"composite={composite:.2f})")
+            return {"action": "HOLD", "confidence": 0,
+                    "reason": f"Laya veto (avoid_p={laya_interp['avoid_prob']:.2f})"}
 
         signal = {"action": det_action, "reason": f"Quant composite {composite:.2f} in {regime}"}
 
@@ -298,6 +330,20 @@ class SupervisorAgent:
             log.info(f"[{exchange_id}] Meta-learner override: {meta_confidence:.2f} -> {min_conf_floor} (composite={composite:.2f}, action={det_action})")
             meta_confidence = min_conf_floor
         signal["confidence"] = meta_confidence
+
+        # LAYA conviction/regime blend: bounded multiplier on meta-confidence.
+        # Range ~[0.85, 1.08] -- can soften a weak setup or sharpen a coherent one,
+        # but the quant action itself is never flipped here (veto path handles blocks).
+        if laya_interp and actionable:
+            before = signal["confidence"]
+            signal["confidence"] = max(0.0, min(1.0, before * laya_interp["multiplier"]))
+            if laya_interp["regime_mismatch"]:
+                log.info(f"[LAYA_REGIME] {symbol}: engine={regime} vs laya={laya_interp['regime']} "
+                         f"(p={laya_interp['regime_prob']:.2f}) -- confidence scaled "
+                         f"{before:.3f} -> {signal['confidence']:.3f}")
+            elif abs(signal["confidence"] - before) > 0.005:
+                log.debug(f"[LAYA] {symbol} confidence {before:.3f} -> "
+                          f"{signal['confidence']:.3f} ({laya_interp['summary']})")
 
         # SHADOW: case-based recall from vector memory. Purely observational -- logged for
         # comparison against the quant decision, never read by anything decision-affecting.
@@ -354,7 +400,15 @@ class SupervisorAgent:
             "quant_action": signal["action"],   # quant-derived; no LLM in the decision path
             "regime": regime,
             "trend_1h": trend_1h,
-            "trend_4h": trend_4h
+            "trend_4h": trend_4h,
+            # Laya System-1 verdict attached for post-trade forensics + /feedback loop.
+            "laya": ({
+                "summary": laya_interp["summary"],
+                "entry": laya_interp["entry"],
+                "avoid_prob": round(laya_interp["avoid_prob"], 4),
+                "regime": laya_interp["regime"],
+                "decision_id": (laya_verdict or {}).get("decision_id"),
+            } if laya_interp else None),
         }
         
         log.info(f"[{exchange_id}] EXECUTING VERIFIED TRADE: {signal['action']} for {symbol}")
@@ -368,12 +422,55 @@ class SupervisorAgent:
             entry_count_key = f"entry_count:{exchange_id}:{symbol}:{int(_entry_time.time() / 86400)}"
             current_entry_count = int(self.redis.get(entry_count_key) or 0)
             self.redis.set(entry_count_key, current_entry_count + 1, ex=172800)
+            # Stash the Laya entry verdict (incl. knowledge-store decision_id) so
+            # settlement/forensics can send /feedback when the trade closes.
+            if laya_interp:
+                try:
+                    self.redis.set(
+                        f"laya_entry:{exchange_id}:{symbol}",
+                        json.dumps({
+                            "entry": laya_interp["entry"],
+                            "avoid_prob": round(laya_interp["avoid_prob"], 4),
+                            "regime": regime,
+                            "decision_id": (laya_verdict or {}).get("decision_id"),
+                        }),
+                        ex=604800,  # 7 days
+                    )
+                except Exception as e:
+                    log.debug(f"[LAYA] entry stash skipped: {e}")
         
         try:
             self.vector_memory.store_decision(symbol, mem_context, signal)
         except Exception as e:
             log.debug(f"[SHADOW-MEMORY] store skipped: {e}")
         return {"action": signal["action"], "status": result['status']}
+
+    def _build_laya_state(self, symbol, exchange_id, price, price_list, regime,
+                          er, vol_ratio, trend_1h, trend_4h, quant_signals,
+                          composite, current_pos) -> dict:
+        """Compact quant-feature summary as the laya state payload."""
+        try:
+            sig_parts = []
+            for k, v in (quant_signals or {}).items():
+                try:
+                    sig_parts.append(f"{k}={float(v):.3f}")
+                except (TypeError, ValueError):
+                    pass
+            rnn = self.strategy_ensemble.last_rnn_result or {}
+            qty = float(current_pos.get("quantity", 0) or 0)
+            pos_desc = ("open qty=%.4f" % qty) if qty else "flat"
+            recent = [round(float(p), 6) for p in (price_list or [])[-5:]]
+            body = (
+                f"{symbol} on {exchange_id}. price={price}, regime={regime}, "
+                f"composite={composite:.3f}, er={er:.2f}, vol_ratio={vol_ratio:.2f}, "
+                f"trend_1h={trend_1h}, trend_4h={trend_4h}, "
+                f"signals[{', '.join(sig_parts)}], "
+                f"rnn={rnn.get('signal', 'NA')}({float(rnn.get('confidence', 0)):.2f}), "
+                f"position={pos_desc}, recent_prices={recent}"
+            )
+            return {"symbol": symbol, "body": body}
+        except Exception as e:
+            return {"symbol": symbol, "body": f"{symbol} regime={regime} state unavailable ({e})"}
 
     def _track_production_metrics(self, equity, risk_evaluation, symbol):
         """Track production metrics and alert on critical events."""
