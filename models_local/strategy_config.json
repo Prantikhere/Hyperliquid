@@ -1,7 +1,7 @@
 {
-  "buy_threshold": 0.7,
-  "sell_threshold": 0.3,
-  "min_confidence": 0.70,
+  "buy_threshold": 0.55,
+  "sell_threshold": 0.45,
+  "min_confidence": 0.55,
   "live_safe": true,
   "use_dynamic_whitelist": false,
   "dynamic_whitelist_top_n": 8,
@@ -9,12 +9,12 @@
   "symbol_whitelist": [
     "ARB/USDT",
     "ETC/USDT",
-    "HBAR/USDT",
-    "TIA/USDT",
-    "LDO/USDT",
-    "AAVE/USDT",
     "PENDLE/USDT",
-    "ONDO/USDT"
+    "ONDO/USDT",
+    "OP/USDT",
+    "INJ/USDT",
+    "NEAR/USDT",
+    "APT/USDT"
   ],
   "_backtest": {
     "buy_threshold": 0.55,

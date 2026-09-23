@@ -40,8 +40,8 @@ async def run_parallel():
 
     # Static whitelist fallback (matches strategy_config.json)
     fallback_symbols = [
-        "ARB/USDT", "ETC/USDT", "HBAR/USDT", "TIA/USDT",
-        "LDO/USDT", "AAVE/USDT", "PENDLE/USDT", "ONDO/USDT"
+        "ARB/USDT", "ETC/USDT", "PENDLE/USDT", "ONDO/USDT",
+        "OP/USDT", "INJ/USDT", "NEAR/USDT", "APT/USDT"
     ]
 
     def get_symbols():
