@@ -38,12 +38,10 @@ async def run_parallel():
         log.error(f"Failed to init Autonomous Brain: {e}")
         brain = None
 
-    # Dynamic whitelist managed by DynamicWhitelist multi-factor scoring.
-    # Falls back to static list if dynamic scoring fails.
+    # Static whitelist fallback (matches strategy_config.json)
     fallback_symbols = [
-        "SUI/USDT", "TIA/USDT", "LDO/USDT", "AAVE/USDT", "DYDX/USDT",
-        "MKR/USDT", "RENDER/USDT", "WLD/USDT",
-        "TON/USDT", "POL/USDT", "ONDO/USDT", "PENDLE/USDT", "XLM/USDT", "HBAR/USDT"
+        "ARB/USDT", "ETC/USDT", "HBAR/USDT", "TIA/USDT",
+        "LDO/USDT", "AAVE/USDT", "PENDLE/USDT", "ONDO/USDT"
     ]
 
     def get_symbols():

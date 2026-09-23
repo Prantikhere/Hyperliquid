@@ -40,7 +40,7 @@ class DynamicWhitelist:
     
     # Default static whitelist (fallback if dynamic scoring fails)
     STATIC_FALLBACK = [
-        "ARB/USDT", "OP/USDT", "ETC/USDT", "HBAR/USDT",
+        "ARB/USDT", "ETC/USDT", "HBAR/USDT",
         "TIA/USDT", "LDO/USDT", "AAVE/USDT", "PENDLE/USDT", "ONDO/USDT"
     ]
     

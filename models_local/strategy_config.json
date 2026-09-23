@@ -1,7 +1,7 @@
 {
-  "buy_threshold": 0.55,
-  "sell_threshold": 0.45,
-  "min_confidence": 0.55,
+  "buy_threshold": 0.7,
+  "sell_threshold": 0.3,
+  "min_confidence": 0.70,
   "live_safe": true,
   "use_dynamic_whitelist": false,
   "dynamic_whitelist_top_n": 8,
@@ -286,5 +286,9 @@
         "vs_hold_pct": 21.4
       }
     }
-  }
+  },
+  "_tuned_at": "2026-09-23T00:27:37.819850",
+  "_tune_count": 4,
+  "_rolling_win_rate": 0.25,
+  "_rolling_sharpe": -0.7263
 }

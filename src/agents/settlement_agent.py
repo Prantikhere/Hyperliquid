@@ -168,7 +168,7 @@ class SettlementAgent:
                 # MOMENTUM EXIT: Exit when signal weakens
                 momentum_fading = (roi > 0.01) and (comp < 0.35)
 
-                stale_position = (held_hours > 8) and (roi < 0)  # 8h with negative ROI = stale
+                stale_position = (held_hours > 4) and (roi < 0)  # 4h with negative ROI = stale (was 8h)
 
                 log.info(f"[SETTLEMENT] {exchange_id} {symbol} {side} | ROI: {roi*100:.2f}% | Peak: {peak_roi*100:.2f}% | TP: {tp_threshold*100:.2f}% | SL: {sl_threshold*100:.2f}% | comp: {comp:.2f} | regime: {regime} | held: {held_hours:.1f}h")
 

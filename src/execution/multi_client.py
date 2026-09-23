@@ -52,14 +52,24 @@ class MultiExchangeClient:
                 lev = int(leverage) if leverage else 5
                 self.hl_sdk.set_leverage(coin, lev)
             
-            if order_type.upper() == "MARKET":
-                return self.hl_sdk.place_market_order(
-                    coin, is_buy, quantity, slippage=0.01, reduce_only=reduce_only
-                )
+            # HL testnet: IOC market orders fail (no resting orders to match)
+            # Use GTC limit orders at oracle price for ALL HL orders
+            oracle_px = self.hl_sdk._get_oracle_px(coin)
+            if oracle_px <= 0:
+                return {"error": f"Cannot get oracle price for {coin}"}
+            
+            # For exits (reduce_only), use oracle price directly
+            # For entries, add small slippage in the right direction
+            if reduce_only:
+                limit_px = oracle_px  # Exit at oracle
+            elif is_buy:
+                limit_px = oracle_px * 1.005  # Buy slightly above oracle
             else:
-                return self.hl_sdk.place_limit_order(
-                    coin, is_buy, quantity, price, reduce_only=reduce_only
-                )
+                limit_px = oracle_px * 0.995  # Sell slightly below oracle
+            
+            return self.hl_sdk.place_limit_order(
+                coin, is_buy, quantity, limit_px, reduce_only=reduce_only, tif="Gtc"
+            )
 
         # BingX uses ccxt
         try:
