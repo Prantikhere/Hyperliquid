@@ -71,7 +71,32 @@ class ParameterTuner:
                 for k, v in data.items():
                     if hasattr(self.state, k):
                         setattr(self.state, k, v)
-                log.info(f"[TUNER] Loaded state: {self.state.tune_count} previous tunes")
+                # DRIFT GUARD: strategy_config.json is the live source of truth
+                # (Supervisor loads it every boot). If tuner state diverged from
+                # config (e.g. config restored from git, or tuner wrote only state),
+                # re-anchor thresholds to config so the next tune steps from live
+                # values instead of a ghost baseline.
+                if os.path.exists(self.config_path):
+                    try:
+                        with open(self.config_path, 'r') as f:
+                            cfg = json.load(f)
+                        for key, attr in (
+                            ("buy_threshold", "current_buy_threshold"),
+                            ("sell_threshold", "current_sell_threshold"),
+                            ("min_confidence", "current_min_confidence"),
+                        ):
+                            cfg_val = cfg.get(key)
+                            if cfg_val is not None and abs(float(cfg_val) - float(getattr(self.state, attr))) > 1e-9:
+                                log.warning(
+                                    f"[TUNER] Drift: state.{attr}={getattr(self.state, attr)} "
+                                    f"vs config.{key}={cfg_val} -- re-anchoring to config"
+                                )
+                                setattr(self.state, attr, float(cfg_val))
+                    except Exception as cfg_err:
+                        log.debug(f"[TUNER] Drift guard skipped (config unreadable): {cfg_err}")
+                log.info(f"[TUNER] Loaded state: {self.state.tune_count} previous tunes "
+                         f"(buy={self.state.current_buy_threshold} sell={self.state.current_sell_threshold} "
+                         f"conf={self.state.current_min_confidence})")
             except Exception as e:
                 log.error(f"[TUNER] Failed to load state: {e}")
 

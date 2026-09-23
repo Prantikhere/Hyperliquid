@@ -249,9 +249,9 @@ class LayaClient:
         return None
 
     def evaluate_blocking(self, state: Dict, questions: Dict,
-                          timeout: float = 8.0) -> Optional[Dict]:
+                          timeout: float = 12.0) -> Optional[Dict]:
         """Direct synchronous prediction with timeout. Never raises. For the rare
-        paths where a few seconds are acceptable (e.g. UNKNOWN forensics)."""
+        paths where a few seconds are acceptable (e.g. entry supervision)."""
         if not self.enabled or time.time() < self._circuit_open_until:
             return None
         try:

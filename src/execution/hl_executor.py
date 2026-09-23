@@ -62,6 +62,73 @@ async def run_parallel():
     interval = 60
 
     log.info(f"Starting AGGRESSIVE Hyperliquid Executor with Profit Booking...")
+
+    async def universe_feed_loop():
+        """
+        Background task: polls ALL Hyperliquid oracle prices every 30s.
+        Writes to Redis (price:hyperliquid:{symbol}) AND DB (external_prices).
+        This populates the universe so DynamicWhitelist can score all 200+ symbols.
+        """
+        from src.execution.hl_raw import HlSdkClient
+        from src.utils.db import DatabaseManager
+        from datetime import datetime, timezone
+        import redis as _redis
+        feed_db = DatabaseManager()
+        feed_redis = _redis.Redis(host=os.getenv('REDIS_HOST', 'localhost'), port=6379, decode_responses=True)
+        FEED_INTERVAL = 30  # seconds
+        DB_WRITE_EVERY = 4   # write to DB every 4th cycle (~2 min) to avoid overwhelming it
+        cycle = 0
+
+        # Excluded toxic symbols — never write to Redis for trading consideration
+        EXCLUDED = {"NEAR/USDT", "FIL/USDT", "HBAR/USDT",
+                    "FARTCOIN/USDT", "JELLYJELLY/USDT", "JELLY/USDT", "USELESS/USDT"}
+
+        log.info("[UNIVERSE_FEED] Starting full-universe price feed (30s interval)...")
+        while True:
+            try:
+                client = HlSdkClient()
+                mids = client.info.all_mids()
+                now = datetime.now(timezone.utc)
+                cycle += 1
+                do_db_write = (cycle % DB_WRITE_EVERY == 0)
+
+                pipe = feed_redis.pipeline()
+                db_batch = []
+
+                for coin, mid_str in mids.items():
+                    try:
+                        price = float(mid_str)
+                        if price <= 0:
+                            continue
+                        symbol = f"{coin}/USDT"
+                        if symbol in EXCLUDED:
+                            continue
+
+                        # Always write to Redis for real-time consumption
+                        pipe.set(f"price:hyperliquid:{symbol}", str(price), ex=120)
+
+                        # Write to DB periodically for scoring history
+                        if do_db_write:
+                            db_batch.append((now, f"hyperliquid:{symbol}", price, 0))
+                    except (ValueError, TypeError):
+                        continue
+
+                pipe.execute()
+
+                if do_db_write and db_batch:
+                    for row in db_batch:
+                        feed_db.insert_external_price(row)
+                    feed_db.conn.commit()
+                    log.debug(f"[UNIVERSE_FEED] Wrote {len(db_batch)} prices to DB")
+
+                log.debug(f"[UNIVERSE_FEED] Updated {len(mids)} oracle prices in Redis")
+
+            except Exception as e:
+                log.warning(f"[UNIVERSE_FEED] Error: {e}")
+
+            await asyncio.sleep(FEED_INTERVAL)
+
+
     
     async def trading_loop():
         cycle_count = 0
@@ -87,12 +154,13 @@ async def run_parallel():
                 log.error(f"Trading Loop Error: {e}")
                 await asyncio.sleep(10)
 
-    # Run Trading and Settlement in parallel.
+    # Run Trading, Settlement and Universe Feed in parallel.
     # return_exceptions=True prevents one task crashing from killing the other.
     try:
         results = await asyncio.gather(
             trading_loop(),
             settlement.run_forever(),
+            universe_feed_loop(),
             return_exceptions=True
         )
         for i, result in enumerate(results):

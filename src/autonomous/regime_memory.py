@@ -304,7 +304,7 @@ class RegimeMemory:
             "total_roi": f"{record.total_roi:.4f}",
             "best_symbol": record.best_symbol,
             "worst_symbol": record.worst_symbol,
-            "symbol_roi_totals": record.symbol_roi_totals,
+            "symbol_roi_totals": json.dumps(record.symbol_roi_totals or {}),
         })
         self.redis.expire(key, 86400 * 30)
 

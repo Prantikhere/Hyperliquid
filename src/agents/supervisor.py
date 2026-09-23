@@ -193,11 +193,15 @@ class SupervisorAgent:
         # latency, zero 429/402 failures. Thresholds come from the backtested strategy config.
         composite = self.strategy_ensemble.composite_score(quant_signals, regime)
         
-        # Use brain-tuned parameters if available
+        # Use brain-tuned parameters if available. min_confidence is resolved
+        # here too so the gate tracks the tuner (previously cfg-only at line ~370,
+        # which ignored tuner_params.min_confidence and let config/state drift).
+        tuner_min_conf = None
         if brain_recommendation and brain_recommendation.get("tuner_params"):
             tuner = brain_recommendation["tuner_params"]
             buy_th = tuner.get("buy_threshold", self.cfg.get("buy_threshold", 0.58))
             sell_th = tuner.get("sell_threshold", self.cfg.get("sell_threshold", 0.42))
+            tuner_min_conf = tuner.get("min_confidence")
         else:
             buy_th = self.cfg.get("buy_threshold", 0.58)
             sell_th = self.cfg.get("sell_threshold", 0.42)
@@ -283,7 +287,13 @@ class SupervisorAgent:
                 laya_state = self._build_laya_state(symbol, exchange_id, price, price_list, regime,
                                                     er, vol_ratio, trend_1h, trend_4h,
                                                     quant_signals, composite, current_pos)
-                laya_verdict = self.laya_client.evaluate_blocking(laya_state, LAYA_ENTRY_QUESTIONS, timeout=8.0)
+                # Blocking entry path: entry question ONLY. Full 4-question set
+                # (entry+regime+conviction+sanity) measured >25s under load and
+                # always tripped the circuit (fail-open = veto never fires). The
+                # entry choice alone is what drives veto/avoid_prob. Forensics
+                # still uses the full question set async post-trade.
+                laya_verdict = self.laya_client.evaluate_blocking(
+                    laya_state, {"entry": LAYA_ENTRY_QUESTIONS["entry"]}, timeout=12.0)
                 if laya_verdict:
                     laya_interp = interpret_entry_verdict(laya_verdict, engine_regime=regime)
                     with self.laya_client._lock:
@@ -367,7 +377,10 @@ class SupervisorAgent:
         except Exception as e:
             log.debug(f"[SHADOW-MEMORY] recall skipped: {e}")
 
-        min_conf = float(self.cfg.get("min_confidence", 0.55))
+        if tuner_min_conf is not None:
+            min_conf = float(tuner_min_conf)
+        else:
+            min_conf = float(self.cfg.get("min_confidence", 0.55))
         log.debug(f"[DECISION_DEBUG] {symbol}: det_action={det_action}, signal_action={signal.get('action')}, confidence={signal.get('confidence', 0):.2f}, composite={composite:.2f}, min_conf={min_conf:.2f}")
         if signal["action"] == "HOLD" or signal["confidence"] < min_conf:
             log.info(f"[{exchange_id}] Decision: HOLD {symbol} (conf={signal['confidence']:.2f}, req={min_conf:.2f}) | composite={composite:.2f} | regime={regime}")
