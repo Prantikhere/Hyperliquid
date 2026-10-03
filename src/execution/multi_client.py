@@ -53,22 +53,33 @@ class MultiExchangeClient:
                 self.hl_sdk.set_leverage(coin, lev)
             
             # HL testnet: IOC market orders fail (no resting orders to match)
-            # Use GTC limit orders at oracle price for ALL HL orders
+            # Use GTC limit orders crossing the spread via L2 snapshot for exits, and close to oracle for entries
             oracle_px = self.hl_sdk._get_oracle_px(coin)
             if oracle_px <= 0:
                 return {"error": f"Cannot get oracle price for {coin}"}
             
-            # For exits (reduce_only), cross the spread slightly: resting at the
-            # exact oracle price may never fill on thin testnet books (FIL close
-            # hung 30s+ at oracle, filled instantly 0.3% through it). Still well
-            # inside HL's ~2% oracle band.
-            # For entries, keep small slippage in the trade direction.
             if reduce_only:
-                limit_px = oracle_px * (1.003 if is_buy else 0.997)
+                # Exiting an open position: check live L2 book to cross spread for immediate fill
+                try:
+                    l2 = self.hl_sdk.info.l2_snapshot(coin)
+                    bids = l2.get("levels", [[]])[0]
+                    asks = l2.get("levels", [[], []])[1] if len(l2.get("levels", [])) > 1 else []
+                    if is_buy and asks:
+                        limit_px = float(asks[0]["px"])
+                    elif not is_buy and bids:
+                        limit_px = float(bids[0]["px"])
+                    else:
+                        limit_px = oracle_px * (1.005 if is_buy else 0.995)
+                except Exception as e:
+                    log.warning(f"[HL_EXIT] L2 snapshot failed for {coin}: {e}, falling back to oracle offset")
+                    limit_px = oracle_px * (1.005 if is_buy else 0.995)
+                
+                # Clamp within Hyperliquid's acceptable oracle band (2.5%) to prevent "Price too far from oracle"
+                limit_px = max(oracle_px * 0.975, min(oracle_px * 1.025, limit_px))
             elif is_buy:
-                limit_px = oracle_px * 1.005  # Buy slightly above oracle
+                limit_px = oracle_px * 1.003  # Buy slightly above oracle to minimize entry slippage
             else:
-                limit_px = oracle_px * 0.995  # Sell slightly below oracle
+                limit_px = oracle_px * 0.997  # Sell slightly below oracle to minimize entry slippage
             
             return self.hl_sdk.place_limit_order(
                 coin, is_buy, quantity, limit_px, reduce_only=reduce_only, tif="Gtc"

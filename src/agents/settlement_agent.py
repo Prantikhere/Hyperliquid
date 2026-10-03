@@ -107,12 +107,12 @@ class SettlementAgent:
                 tp_threshold, sl_threshold = self.regime_engine.get_dynamic_thresholds(price_list)
                 if is_scalp:
                     # SCALP TP/SL SCALING:
-                    # Scalp target between 0.50% and 1.10% (scaled by volatility, default 0.75%)
-                    base_scalp_tp = scalp_cfg.get("tp_target_pct", 0.0075)
-                    tp_threshold = max(0.0050, min(0.0110, base_scalp_tp * (tp_threshold / 0.025 if tp_threshold else 1.0)))
-                    # Scalp stop loss capped tightly between -0.50% and -0.90% (default -0.75%)
-                    base_scalp_sl = scalp_cfg.get("sl_target_pct", -0.0075)
-                    sl_threshold = max(-0.0090, min(-0.0050, base_scalp_sl))
+                    # Scalp target widened between 1.0% and 2.5% (scaled by volatility, default 1.80%)
+                    base_scalp_tp = scalp_cfg.get("tp_target_pct", 0.0180)
+                    tp_threshold = max(0.0100, min(0.0250, base_scalp_tp * (tp_threshold / 0.025 if tp_threshold else 1.0)))
+                    # Scalp stop loss capped safely between -0.70% and -1.20% (default -0.85%)
+                    base_scalp_sl = scalp_cfg.get("sl_target_pct", -0.0085)
+                    sl_threshold = max(-0.0120, min(-0.0070, base_scalp_sl))
                 else:
                     # Enforce minimum TP threshold of 2.5% to ensure positive expectancy over fees/slippage
                     tp_threshold = max(0.025, tp_threshold)
@@ -144,8 +144,8 @@ class SettlementAgent:
                 tp_threshold *= adjustments["take_profit_multiplier"]
                 sl_threshold *= adjustments["stop_loss_multiplier"]
                 if is_scalp:
-                    tp_threshold = max(0.0040, min(0.0120, tp_threshold))
-                    sl_threshold = max(-0.0100, min(-0.0050, sl_threshold))
+                    tp_threshold = max(0.0080, min(0.0300, tp_threshold))
+                    sl_threshold = max(-0.0150, min(-0.0065, sl_threshold))
 
                 from src.quant.backtester import REVERT_MIN_ROI
                 is_trend = "TRENDING" in (regime or "").upper()
@@ -156,8 +156,8 @@ class SettlementAgent:
                 # DYNAMIC STOP: Tighten in unfavorable regime
                 dynamic_sl = False
                 if is_scalp:
-                    if roi < -0.006:
-                        dynamic_sl = roi <= max(sl_threshold, -0.006)
+                    if roi < -0.0085:
+                        dynamic_sl = roi <= max(sl_threshold, -0.0085)
                 else:
                     if roi < -0.02:
                         dynamic_sl = roi <= max(sl_threshold, -0.02)
@@ -180,28 +180,28 @@ class SettlementAgent:
 
                 if is_scalp:
                     # SCALP TRAILING & BREAKEVEN RULES (Zero-Mistake Profit Protection)
-                    # Breakeven stop: once peak reached +0.25%, exit if it drops below +0.08%
-                    # Guarantees trade clears Hyperliquid fees (~0.025%) and locks positive net outcome.
-                    be_trigger = scalp_cfg.get("breakeven_trigger_pct", 0.0025)
-                    be_lock = scalp_cfg.get("breakeven_lock_pct", 0.0008)
+                    # Breakeven stop: once peak reached +0.60%, exit if it drops below +0.20%
+                    # Guarantees trade clears Hyperliquid fees (~0.08% roundtrip) and locks positive net outcome.
+                    be_trigger = scalp_cfg.get("breakeven_trigger_pct", 0.0060)
+                    be_lock = scalp_cfg.get("breakeven_lock_pct", 0.0020)
                     breakeven_stop = (peak_roi >= be_trigger) and (roi < be_lock) and (roi > -0.003)
 
-                    # Trailing exit: once ROI >= +0.45%, exit if it drops 15% from peak
-                    trail_trigger = scalp_cfg.get("trailing_trigger_pct", 0.0045)
+                    # Trailing exit: once ROI >= +1.00%, exit if it drops 15% from peak
+                    trail_trigger = scalp_cfg.get("trailing_trigger_pct", 0.0100)
                     trailing_exit = (roi >= trail_trigger) and (peak_roi >= trail_trigger) and (roi < peak_roi * 0.85)
 
-                    # High profit lock: if ROI >= 1.0% and drops 12% from peak
-                    high_profit_exit = (roi >= 0.010) and (peak_roi >= 0.010) and (roi < peak_roi * 0.88)
+                    # High profit lock: if ROI >= 1.5% and drops 12% from peak
+                    high_profit_exit = (roi >= 0.015) and (peak_roi >= 0.015) and (roi < peak_roi * 0.88)
 
-                    # Scalp stale exit: cut stagnant trades held > 45 minutes with roi < +0.05%
-                    max_scalp_hours = scalp_cfg.get("max_hold_hours", 0.75)
+                    # Scalp stale exit: cut stagnant trades held > 1.5 hours with roi < +0.05%
+                    max_scalp_hours = scalp_cfg.get("max_hold_hours", 1.5)
                     stale_position = (held_hours > max_scalp_hours) and (roi < 0.0005)
 
-                    # Scalp reversion exit: book profit if cleared +0.35% and mean reversion occurs
-                    reverted = (not is_trend) and (roi >= 0.0035) and (held_hours > 0.1) and (
+                    # Scalp reversion exit: book profit if cleared +0.60% and mean reversion occurs
+                    reverted = (not is_trend) and (roi >= 0.0060) and (held_hours > 0.15) and (
                         (side == "LONG" and comp <= 0.45) or (side == "SHORT" and comp >= 0.55)
                     )
-                    momentum_fading = (roi >= 0.0035) and (comp < 0.40 if side == "LONG" else comp > 0.60)
+                    momentum_fading = (roi >= 0.0060) and (comp < 0.40 if side == "LONG" else comp > 0.60)
                 else:
                     # Trailing exit: only if ROI > 2.5% and drops 20% from peak (locks in solid gains)
                     trailing_exit = (roi >= 0.025) and (peak_roi >= 0.025) and (roi < peak_roi * 0.80)
@@ -399,11 +399,12 @@ class SettlementAgent:
                             except Exception as ex_laya_fb:
                                 log.debug(f"[LAYA_FEEDBACK] Feedback submission error: {ex_laya_fb}")
                     else:
-                        # Increment failed exit counter
+                        # Increment failed exit counter with short cooldown (2m) instead of permanent abandonment
                         failed_exit_key = f"failed_exits:{exchange_id}:{symbol}"
                         new_count = int(self.redis.get(failed_exit_key) or 0) + 1
-                        self.redis.set(failed_exit_key, new_count, ex=86400)  # 24h TTL - don't retry for 24h
-                        log.warning(f"[SETTLEMENT] {symbol} on {exchange_id}: exit order failed ({new_count}/5 retries)")
+                        ttl = 120 if new_count >= 5 else 300
+                        self.redis.set(failed_exit_key, new_count, ex=ttl)
+                        log.warning(f"[SETTLEMENT] {symbol} on {exchange_id}: exit order failed ({new_count}/5 retries, cooling down {ttl}s)")
 
         except Exception as e:
             log.exception(f"Settlement Cycle Error: {e}")

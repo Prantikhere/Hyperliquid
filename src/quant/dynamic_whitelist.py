@@ -39,10 +39,9 @@ class DynamicWhitelist:
     }
     
     # Default static whitelist (fallback if dynamic scoring fails)
-    # Keep in sync with models_local/strategy_config.json symbol_whitelist
     STATIC_FALLBACK = [
-        "ARB/USDT", "ETC/USDT", "PENDLE/USDT", "ONDO/USDT",
-        "OP/USDT", "INJ/USDT", "APT/USDT"
+        "BTC/USDT", "ETH/USDT", "SOL/USDT", "ZRO/USDT",
+        "WLD/USDT", "ARB/USDT", "LIT/USDT", "OP/USDT"
     ]
     
     # Minimum requirements for inclusion
@@ -155,6 +154,16 @@ class DynamicWhitelist:
                     log.info(f"[DYN_WHITELIST] Excluded {len(churn_blocked)} churn-blocked symbols: {churn_blocked}")
             except Exception as e:
                 log.debug(f"[DYN_WHITELIST] Churn filter skipped: {e}")
+
+            # Filter out blacklisted/toxic symbols
+            EXCLUDED_SYMBOLS = {
+                "NEAR/USDT", "FIL/USDT", "HBAR/USDT", "2Z/USDT",
+                "VVV/USDT", "APT/USDT", "ADA/USDT", "AR/USDT", "AVAX/USDT", "JUP/USDT"
+            }
+            for sym in list(scores.keys()):
+                if sym in EXCLUDED_SYMBOLS:
+                    del scores[sym]
+                    log.debug(f"[DYN_WHITELIST] {sym} excluded: blacklisted/toxic symbol")
             
             # Sort by score and take top N
             ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)

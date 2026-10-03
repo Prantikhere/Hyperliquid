@@ -235,9 +235,14 @@ class SupervisorAgent:
         symbol_ok = (symbol in whitelist) if whitelist else False
         
         # DEAD & TOXIC SYMBOL CHECK: Skip symbols with broken oracle/exchange feeds or severe failure history
-        EXCLUDED_SYMBOLS = {"NEAR/USDT", "FIL/USDT", "HBAR/USDT"}
-        if symbol in EXCLUDED_SYMBOLS:
-            log.debug(f"[EXCLUDED_SYMBOL] {symbol} on {exchange_id} is permanently excluded (illiquid/toxic). Skipping.")
+        EXCLUDED_SYMBOLS = {
+            "NEAR/USDT", "FIL/USDT", "HBAR/USDT", "2Z/USDT",
+            "VVV/USDT", "APT/USDT", "ADA/USDT", "AR/USDT", "AVAX/USDT", "JUP/USDT"
+        }
+        cfg_blacklist = set(self.cfg.get("symbol_blacklist", []))
+        all_excluded = EXCLUDED_SYMBOLS | cfg_blacklist
+        if symbol in all_excluded:
+            log.info(f"[EXCLUDED_SYMBOL] {symbol} on {exchange_id} is permanently excluded/blacklisted. Skipping.")
             return {"action": "HOLD", "confidence": 0, "reason": f"Excluded toxic symbol: {symbol}"}
 
         dead_key = f"dead_symbols:{exchange_id}"
@@ -397,11 +402,10 @@ class SupervisorAgent:
         if tuner_min_conf is not None:
             min_conf = float(tuner_min_conf)
         else:
-            min_conf = float(self.cfg.get("min_confidence", 0.55))
+            min_conf = float(self.cfg.get("min_confidence", 0.70))
         if is_scalp:
-            min_conf = max(0.55, min_conf)
-            if laya_interp and laya_interp.get("entry") == "enter":
-                min_conf = min(min_conf, 0.58)
+            scalp_min_conf = float(self.cfg.get("scalp_config", {}).get("min_confidence", 0.70))
+            min_conf = max(min_conf, scalp_min_conf)
         log.debug(f"[DECISION_DEBUG] {symbol}: det_action={det_action}, signal_action={signal.get('action')}, confidence={signal.get('confidence', 0):.2f}, composite={composite:.2f}, min_conf={min_conf:.2f}")
         if signal["action"] == "HOLD" or signal["confidence"] < min_conf:
             log.info(f"[{exchange_id}] Decision: HOLD {symbol} (conf={signal['confidence']:.2f}, req={min_conf:.2f}) | composite={composite:.2f} | regime={regime}")
