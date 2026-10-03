@@ -26,12 +26,28 @@ class SettlementAgent:
         # opened by perp_ls/pairs_arb (same wallet) -- and force-closes them on
         # its own TP/SL/reversion logic, silently untracked by those bots' own logs.
         self.owned_symbols = set(owned_symbols) if owned_symbols is not None else None
+        self.config_path = "models_local/strategy_config.json"
+
+    def _load_config(self):
+        try:
+            if os.path.exists(self.config_path):
+                with open(self.config_path, 'r') as f:
+                    return json.load(f)
+        except Exception:
+            pass
+        return {}
 
     async def run_settlement_cycle(self, exchange_id="hyperliquid"):
         """Scan all open positions for profit booking opportunities."""
         held_hours = 0.0
         try:
             positions = self.db.get_positions()
+            
+            # Load active strategy configuration for dynamic mode & scalp parameters
+            cfg = self._load_config()
+            trading_mode = cfg.get("trading_mode", "aggressive").lower()
+            scalp_cfg = cfg.get("scalp_config", {})
+            is_scalp = ("scalp" in trading_mode) or scalp_cfg.get("enabled", False)
             
             # Fetch open orders once for the exchange to avoid rate limiting and allow duplicate checks
             try:
@@ -57,8 +73,14 @@ class SettlementAgent:
             for (symbol, eid), pos in positions.items():
                 if eid != exchange_id or pos['quantity'] == 0:
                     continue
-                if self.owned_symbols is not None and symbol not in self.owned_symbols:
+                # Exclude pairs_arb reserved spread pair (ETC/FIL) which is managed by pairs_arb_executor.
+                # All other open positions (including scalps that rotated off top-20 whitelist)
+                # MUST be actively managed by SettlementAgent so they never become orphaned zombies.
+                PAIRS_ARB_RESERVED = {"ETC/USDT", "FIL/USDT"}
+                if symbol in PAIRS_ARB_RESERVED:
                     continue
+
+
                 
                 # DEAD SYMBOL CHECK: Skip symbols with broken oracle/exchange feeds
                 dead_key = f"dead_symbols:{exchange_id}"
@@ -83,10 +105,19 @@ class SettlementAgent:
                 
                 # Dynamic Volatility TP/SL Scaling (protective backstops)
                 tp_threshold, sl_threshold = self.regime_engine.get_dynamic_thresholds(price_list)
-                # Enforce minimum TP threshold of 2.5% to ensure positive expectancy over fees/slippage
-                tp_threshold = max(0.025, tp_threshold)
-                # Enforce protective stop loss ceiling between -1.5% and -2.5%
-                sl_threshold = max(-0.025, min(-0.015, sl_threshold))
+                if is_scalp:
+                    # SCALP TP/SL SCALING:
+                    # Scalp target between 0.50% and 1.10% (scaled by volatility, default 0.75%)
+                    base_scalp_tp = scalp_cfg.get("tp_target_pct", 0.0075)
+                    tp_threshold = max(0.0050, min(0.0110, base_scalp_tp * (tp_threshold / 0.025 if tp_threshold else 1.0)))
+                    # Scalp stop loss capped tightly between -0.50% and -0.90% (default -0.75%)
+                    base_scalp_sl = scalp_cfg.get("sl_target_pct", -0.0075)
+                    sl_threshold = max(-0.0090, min(-0.0050, base_scalp_sl))
+                else:
+                    # Enforce minimum TP threshold of 2.5% to ensure positive expectancy over fees/slippage
+                    tp_threshold = max(0.025, tp_threshold)
+                    # Enforce protective stop loss ceiling between -1.5% and -2.5%
+                    sl_threshold = max(-0.025, min(-0.015, sl_threshold))
 
                 regime = self.regime_engine.detect_regime(price_list)
                 sig = self.strategy_ensemble.get_signals(price_list)
@@ -112,6 +143,9 @@ class SettlementAgent:
                 adjustments = learning_module.get_adjusted_parameters(symbol, exchange_id, regime)
                 tp_threshold *= adjustments["take_profit_multiplier"]
                 sl_threshold *= adjustments["stop_loss_multiplier"]
+                if is_scalp:
+                    tp_threshold = max(0.0040, min(0.0120, tp_threshold))
+                    sl_threshold = max(-0.0100, min(-0.0050, sl_threshold))
 
                 from src.quant.backtester import REVERT_MIN_ROI
                 is_trend = "TRENDING" in (regime or "").upper()
@@ -119,28 +153,23 @@ class SettlementAgent:
                 # HARD STOP LOSS: Exit immediately if loss exceeds threshold
                 hard_stop = roi <= sl_threshold
                 
-                # DYNAMIC STOP: Tighten if loss exceeds 2% in unfavorable regime
+                # DYNAMIC STOP: Tighten in unfavorable regime
                 dynamic_sl = False
-                if roi < -0.02:
-                    dynamic_sl = roi <= max(sl_threshold, -0.02)
+                if is_scalp:
+                    if roi < -0.006:
+                        dynamic_sl = roi <= max(sl_threshold, -0.006)
+                else:
+                    if roi < -0.02:
+                        dynamic_sl = roi <= max(sl_threshold, -0.02)
                 
-                # TRAILING STOP: Only activate once meaningful profit is secured (> 2.5%)
+                # TRAILING & PEAK TRACKING
                 peak_key = f"peak_roi:{exchange_id}:{symbol}"
                 peak_roi = float(self.redis.get(peak_key) or 0)
                 if roi > peak_roi:
                     self.redis.set(peak_key, roi, ex=14400)  # 4h TTL
                     peak_roi = roi
-                
-                # Trailing exit: only if ROI > 2.5% and drops 20% from peak (locks in solid gains)
-                trailing_exit = (roi >= 0.025) and (peak_roi >= 0.025) and (roi < peak_roi * 0.80)
-                
-                # High profit lock: exit if ROI > 5% and drops 15% from peak
-                high_profit_exit = (roi >= 0.05) and (peak_roi >= 0.05) and (roi < peak_roi * 0.85)
-                
-                # BREAKEVEN STOP: Protect capital once peak exceeded 2.5%, exit if it falls back to +0.8% (covers fees)
-                breakeven_stop = (peak_roi >= 0.025) and (roi < 0.008) and (roi > -0.005)
 
-                # TIME-BASED EXIT: Cut stale positions held > 4h with net loss
+                # TIME-BASED EXIT: Track holding time
                 import time
                 position_age_key = f"position_age:{exchange_id}:{symbol}"
                 position_age = float(self.redis.get(position_age_key) or 0)
@@ -149,11 +178,40 @@ class SettlementAgent:
                     position_age = time.time()
                 held_hours = (time.time() - position_age) / 3600
 
-                # REVERSION EXIT: Must clear at least 2.0% profit before exiting on mean reversion!
-                # Micro-exits at +0.5% destroyed math expectancy. Winners must pay for stop losses.
-                reverted = (not is_trend) and (roi >= 0.020) and (held_hours > 0.5) and (
-                    (side == "LONG" and comp <= 0.45) or (side == "SHORT" and comp >= 0.55)
-                )
+                if is_scalp:
+                    # SCALP TRAILING & BREAKEVEN RULES (Zero-Mistake Profit Protection)
+                    # Breakeven stop: once peak reached +0.25%, exit if it drops below +0.08%
+                    # Guarantees trade clears Hyperliquid fees (~0.025%) and locks positive net outcome.
+                    be_trigger = scalp_cfg.get("breakeven_trigger_pct", 0.0025)
+                    be_lock = scalp_cfg.get("breakeven_lock_pct", 0.0008)
+                    breakeven_stop = (peak_roi >= be_trigger) and (roi < be_lock) and (roi > -0.003)
+
+                    # Trailing exit: once ROI >= +0.45%, exit if it drops 15% from peak
+                    trail_trigger = scalp_cfg.get("trailing_trigger_pct", 0.0045)
+                    trailing_exit = (roi >= trail_trigger) and (peak_roi >= trail_trigger) and (roi < peak_roi * 0.85)
+
+                    # High profit lock: if ROI >= 1.0% and drops 12% from peak
+                    high_profit_exit = (roi >= 0.010) and (peak_roi >= 0.010) and (roi < peak_roi * 0.88)
+
+                    # Scalp stale exit: cut stagnant trades held > 45 minutes with roi < +0.05%
+                    max_scalp_hours = scalp_cfg.get("max_hold_hours", 0.75)
+                    stale_position = (held_hours > max_scalp_hours) and (roi < 0.0005)
+
+                    # Scalp reversion exit: book profit if cleared +0.35% and mean reversion occurs
+                    reverted = (not is_trend) and (roi >= 0.0035) and (held_hours > 0.1) and (
+                        (side == "LONG" and comp <= 0.45) or (side == "SHORT" and comp >= 0.55)
+                    )
+                    momentum_fading = (roi >= 0.0035) and (comp < 0.40 if side == "LONG" else comp > 0.60)
+                else:
+                    # Trailing exit: only if ROI > 2.5% and drops 20% from peak (locks in solid gains)
+                    trailing_exit = (roi >= 0.025) and (peak_roi >= 0.025) and (roi < peak_roi * 0.80)
+                    high_profit_exit = (roi >= 0.05) and (peak_roi >= 0.05) and (roi < peak_roi * 0.85)
+                    breakeven_stop = (peak_roi >= 0.025) and (roi < 0.008) and (roi > -0.005)
+                    stale_position = (held_hours > 4) and (roi < -0.01)
+                    reverted = (not is_trend) and (roi >= 0.020) and (held_hours > 0.5) and (
+                        (side == "LONG" and comp <= 0.45) or (side == "SHORT" and comp >= 0.55)
+                    )
+                    momentum_fading = (roi >= 0.020) and (comp < 0.35 if side == "LONG" else comp > 0.65)
 
                 # MARKET REGIME-BASED EXITS (only with confirmed profit)
                 regime_unfavorable = False
@@ -162,13 +220,7 @@ class SettlementAgent:
                 elif side == "SHORT" and "TRENDING" in (regime or "").upper():
                     regime_unfavorable = True
 
-                # MOMENTUM EXIT: Exit when momentum fades, but ONLY after locking in at least 2.0% profit
-                momentum_fading = (roi >= 0.020) and (comp < 0.35 if side == "LONG" else comp > 0.65)
-
-                # Stale position exit: cut if held > 4h with loss
-                stale_position = (held_hours > 4) and (roi < -0.01)
-
-                log.info(f"[SETTLEMENT] {exchange_id} {symbol} {side} | ROI: {roi*100:.2f}% | Peak: {peak_roi*100:.2f}% | TP: {tp_threshold*100:.2f}% | SL: {sl_threshold*100:.2f}% | comp: {comp:.2f} | regime: {regime} | held: {held_hours:.1f}h")
+                log.info(f"[SETTLEMENT] {exchange_id} {symbol} {side} | Mode: {'SCALP' if is_scalp else 'SWING'} | ROI: {roi*100:.2f}% | Peak: {peak_roi*100:.2f}% | TP: {tp_threshold*100:.2f}% | SL: {sl_threshold*100:.2f}% | comp: {comp:.2f} | regime: {regime} | held: {held_hours:.1f}h")
 
                 # PRIORITY ORDER: Hard stop > Dynamic stop > Profit target > High profit lock > Trailing > Breakeven > Reversion > Other exits
                 decision = None
@@ -194,23 +246,23 @@ class SettlementAgent:
                     decision = "SELL" if side == "LONG" else "BUY"
                     order_type = "MARKET"
                 elif breakeven_stop:
-                    log.info(f"~~~ BREAKEVEN STOP for {symbol} on {exchange_id} (peak={peak_roi*100:.2f}%, now={roi*100:.2f}%). Protecting capital above fees.")
+                    log.info(f"~~~ {'SCALP ' if is_scalp else ''}BREAKEVEN STOP for {symbol} on {exchange_id} (peak={peak_roi*100:.2f}%, now={roi*100:.2f}%). Protecting capital above fees.")
                     decision = "SELL" if side == "LONG" else "BUY"
                     order_type = "MARKET"
                 elif reverted:
-                    log.info(f"~~~ REVERSION EXIT for {symbol} on {exchange_id} (comp={comp:.2f}, ROI={roi*100:.2f}%). Booking reversion profit.")
+                    log.info(f"~~~ {'SCALP ' if is_scalp else ''}REVERSION EXIT for {symbol} on {exchange_id} (comp={comp:.2f}, ROI={roi*100:.2f}%). Booking reversion profit.")
                     decision = "SELL" if side == "LONG" else "BUY"
                     order_type = "MARKET"
-                elif regime_unfavorable and roi >= 0.020:
+                elif regime_unfavorable and roi >= (0.0035 if is_scalp else 0.020):
                     log.info(f"~~~ REGIME EXIT for {symbol} on {exchange_id} (regime={regime}). Booking profit before regime change impact.")
                     decision = "SELL" if side == "LONG" else "BUY"
                     order_type = "MARKET"
                 elif momentum_fading:
-                    log.info(f"~~~ MOMENTUM EXIT for {symbol} on {exchange_id} (comp={comp:.2f}, ROI={roi*100:.2f}%). Booking profit before momentum dies.")
+                    log.info(f"~~~ {'SCALP ' if is_scalp else ''}MOMENTUM EXIT for {symbol} on {exchange_id} (comp={comp:.2f}, ROI={roi*100:.2f}%). Booking profit before momentum dies.")
                     decision = "SELL" if side == "LONG" else "BUY"
                     order_type = "MARKET"
                 elif stale_position:
-                    log.info(f"~~~ STALE EXIT for {symbol} on {exchange_id} (held={held_hours:.1f}h, ROI={roi*100:.2f}%). Cutting stale position.")
+                    log.info(f"~~~ {'SCALP ' if is_scalp else ''}STALE EXIT for {symbol} on {exchange_id} (held={held_hours:.1f}h, ROI={roi*100:.2f}%). Cutting stale position.")
                     decision = "SELL" if side == "LONG" else "BUY"
                     order_type = "MARKET"
 
@@ -272,6 +324,8 @@ class SettlementAgent:
                         # Reset failed exit counter on success
                         failed_exit_key = f"failed_exits:{exchange_id}:{symbol}"
                         self.redis.delete(failed_exit_key)
+                        self.redis.delete(f"peak_roi:{exchange_id}:{symbol}")
+                        self.redis.delete(f"position_age:{exchange_id}:{symbol}")
                         
                         # SESSION LOSS TRACKING: Only track REALIZED PnL on successful exits
                         import time as _time
@@ -352,7 +406,7 @@ class SettlementAgent:
                         log.warning(f"[SETTLEMENT] {symbol} on {exchange_id}: exit order failed ({new_count}/5 retries)")
 
         except Exception as e:
-            log.error(f"Settlement Cycle Error: {e}")
+            log.exception(f"Settlement Cycle Error: {e}")
 
     def _sync_redis_position_state(self, exchange_id, actual_symbols):
         """Rebuild Redis position counters from on-chain truth after reconcile.

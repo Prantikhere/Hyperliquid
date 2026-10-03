@@ -91,8 +91,8 @@ EDGE_COST_WINDOW = 20            # rolling cycles used for the edge/cost ratio (
 EDGE_COST_MIN_SAMPLES = 3        # need at least this many cycles of history before gating on it
 EDGE_COST_FLOOR = 1.0            # ratio at/below this -> edge_scale floors out (edge doesn't cover cost)
 EDGE_COST_CEIL = 1.3             # ratio at/above this -> edge_scale caps at 1.0 (edge comfortably covers cost)
-EDGE_SCALE_FLOOR = 0.15          # never fully zero gross out on a weak ratio; leaves room to recover
-MIN_EDGE_K = 1.75                # skip a leg's entry/add if its expected $ edge < k * trailing avg cost/trade
+EDGE_SCALE_FLOOR = 0.35          # raised from 0.15 for aggressive factor deployment
+MIN_EDGE_K = 0.85                # lowered from 1.75: permits alpha entries that clear transaction friction without excessive buffer
 SKEW_REPAIR_PCT = 5.0            # tolerance band: don't force-repair skew under this % of gross
 # Repair-path dollar floor, deliberately smaller than REBAL_MIN_USD (dust/churn guard). The
 # original bug: repair reused REBAL_MIN_USD both as the gate to even attempt a repair AND as the
@@ -117,7 +117,7 @@ CYCLE_COUNT_FILE = os.path.join(os.path.dirname(__file__), "..", "..", "logs", "
 # force a larger trial size regardless of the ratio so the strategy gets an honest chance to prove
 # (or disprove) itself at meaningful size instead of being starved indefinitely.
 PROBATION_EVERY_N = 6            # roughly once/day at the ~4-6h base cadence
-PROBATION_SCALE = 0.5            # trial edge_scale for a probation cycle (vs EDGE_SCALE_FLOOR=0.15)
+PROBATION_SCALE = 0.75           # trial edge_scale for a probation cycle (raised from 0.50)
 
 LIVE = os.getenv("HL_PERP_LIVE", "no").lower() == "yes"
 

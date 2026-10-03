@@ -1,7 +1,20 @@
 {
+  "trading_mode": "aggressive_scalp",
+  "scalp_mode": true,
+  "scalp_config": {
+    "enabled": true,
+    "tp_target_pct": 0.0075,
+    "sl_target_pct": -0.0075,
+    "breakeven_trigger_pct": 0.0025,
+    "breakeven_lock_pct": 0.0008,
+    "trailing_trigger_pct": 0.0045,
+    "trailing_drop_ratio": 0.15,
+    "max_hold_hours": 0.75,
+    "min_confidence": 0.55
+  },
   "buy_threshold": 0.58,
   "sell_threshold": 0.42,
-  "min_confidence": 0.55,
+  "min_confidence": 0.62,
   "live_safe": true,
   "use_dynamic_whitelist": true,
   "dynamic_whitelist_top_n": 20,
@@ -286,8 +299,8 @@
       }
     }
   },
-  "_tuned_at": "2026-09-23T00:27:37.819850",
-  "_tune_count": 4,
-  "_rolling_win_rate": 0.25,
-  "_rolling_sharpe": -0.7263
+  "_tuned_at": "2026-10-01T19:07:04.515288",
+  "_tune_count": 10,
+  "_rolling_win_rate": 0.4857,
+  "_rolling_sharpe": 0.2144
 }

@@ -2,6 +2,8 @@
 
 # Configuration
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
 PROJECT_DIR="/home/prantik/Downloads/Personal/TradingBingx"
 VENV_PYTHON="$PROJECT_DIR/venv/bin/python3"
 export PYTHONPATH="$PROJECT_DIR"
@@ -13,12 +15,27 @@ log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$WATCHDOG_LOG"
 }
 
-# Stale-wake detector: watchdog itself is cron-triggered, so it goes silent whenever the
-# host is asleep/frozen -- during which no process supervision or risk overlay runs at all.
-# Detect the gap on the run that wakes back up and trip a kill marker executors honor.
-STALE_GAP_SEC=600   # cron cadence is 2min; 600s gives generous slack before flagging
+# Stale-wake detector with automated self-healing recovery:
+# Detects host sleep, reboot, or network freeze gaps. Instead of halting permanently,
+# it checks API connectivity, reconciles on-chain positions, and safely auto-resumes trading.
+STALE_GAP_SEC=600   # cron cadence is 2min; 600s gives slack before flagging
 KILL_MARKER="$PROJECT_DIR/state/STALE_WAKE_HALT"
 mkdir -p "$PROJECT_DIR/state"
+
+reconcile_and_resume() {
+    log "Initiating auto-recovery: checking Hyperliquid connectivity and on-chain positions..."
+    if curl -s --max-time 5 https://api.hyperliquid.xyz/info > /dev/null 2>&1; then
+        cd "$PROJECT_DIR" && "$VENV_PYTHON" scripts/sync_position_state.py >> "$PROJECT_DIR/logs/reboot.log" 2>&1
+        rm -f "$KILL_MARKER"
+        log "Self-healing auto-recovery successful: on-chain positions reconciled. Trading ACTIVE."
+        return 0
+    else
+        log "WARNING: Hyperliquid API unreachable or network offline. Retaining temporary halt marker."
+        echo "$(date '+%Y-%m-%d %H:%M:%S') gap=${1:-unknown} network_offline" > "$KILL_MARKER"
+        return 1
+    fi
+}
+
 if [ -f "$WATCHDOG_LOG" ]; then
     LAST_TS=$(tail -1 "$WATCHDOG_LOG" | grep -oE '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}')
     if [ -n "$LAST_TS" ]; then
@@ -27,12 +44,36 @@ if [ -f "$WATCHDOG_LOG" ]; then
         if [ -n "$LAST_EPOCH" ]; then
             GAP=$((NOW_EPOCH - LAST_EPOCH))
             if [ "$GAP" -gt "$STALE_GAP_SEC" ]; then
-                log "CRITICAL: watchdog was silent for ${GAP}s (host likely slept/froze). Tripping STALE_WAKE_HALT kill marker -- executors will pause trading until this is cleared: rm $KILL_MARKER"
-                echo "$(date '+%Y-%m-%d %H:%M:%S') gap=${GAP}s" > "$KILL_MARKER"
+                log "NOTICE: watchdog gap of ${GAP}s detected (host reboot, wake, or freeze). Triggering self-healing recovery..."
+                reconcile_and_resume "$GAP"
             fi
         fi
     fi
 fi
+
+# If a stale halt marker exists from an earlier network drop, auto-clear once network restores
+if [ -f "$KILL_MARKER" ]; then
+    reconcile_and_resume "marker_recovery"
+fi
+
+# 0. Laya AI Decision Engine supervision with 180s warmup grace period
+MAIN_PID=$(systemctl --user show -p MainPID --value laya.service 2>/dev/null || echo 0)
+if [ "$MAIN_PID" -gt 0 ]; then
+    ELAPSED=$(ps -p "$MAIN_PID" -o etimes= 2>/dev/null | tr -d ' ' || echo 999)
+    if [ -n "$ELAPSED" ] && [ "$ELAPSED" -lt 180 ]; then
+        log "OK: Laya AI service is warming up checkpoint into RAM (PID: $MAIN_PID, elapsed: ${ELAPSED}s < 180s grace)."
+    elif ! curl -s --max-time 10 http://127.0.0.1:8080/health 2>/dev/null | grep -q '"status":"ok"'; then
+        log "CRITICAL: Laya AI service unhealthy after ${ELAPSED}s grace. Restarting via systemctl --user..."
+        systemctl --user restart laya.service >> "$WATCHDOG_LOG" 2>&1 || true
+    else
+        log "OK: Laya AI service is UP."
+    fi
+else
+    log "CRITICAL: laya.service not running. Starting via systemctl --user..."
+    systemctl --user start laya.service >> "$WATCHDOG_LOG" 2>&1 || true
+fi
+
+
 
 check_and_start() {
     local script_path=$1
@@ -80,18 +121,15 @@ else
     log "OK: Perp L/S Executor is running."
 fi
 
-# 3d. Cointegrated Pairs Stat-Arb (LIVE on HL testnet; needs PAIRS_ARB_LIVE=yes)
-#     Symbol-clean vs hl_perp_ls/carry_executor (ETC/FIL only). DD kill-switch, market-neutral.
-#     NOTE 2026-08-26: FIL leg vanished from exchange twice with no log trace (not liquidation,
-#     not another process) -- left ETC naked/unhedged both times, root cause still unresolved.
-#     Auto-restart kept ON per user instruction; investigate in next session.
-if ! ps aux | grep "pairs_arb_executor" | grep -v grep > /dev/null; then
-    log "CRITICAL: Pairs Stat-Arb Executor is NOT running. Restarting..."
-    cd "$PROJECT_DIR" && PAIRS_ARB_LIVE=yes nohup "$VENV_PYTHON" -u -m src.execution.pairs_arb_executor >> "$PROJECT_DIR/logs/pairs_arb.log" 2>&1 &
-    log "Successfully triggered restart for Pairs Stat-Arb Executor."
-else
-    log "OK: Pairs Stat-Arb Executor is running."
-fi
+# 3d. Cointegrated Pairs Stat-Arb -- PAUSED to dedicate 100% margin to rapid scalping
+# if ! ps aux | grep "pairs_arb_executor" | grep -v grep > /dev/null; then
+#     log "CRITICAL: Pairs Stat-Arb Executor is NOT running. Restarting..."
+#     cd "$PROJECT_DIR" && PAIRS_ARB_LIVE=yes nohup "$VENV_PYTHON" -u -m src.execution.pairs_arb_executor >> "$PROJECT_DIR/logs/pairs_arb.log" 2>&1 &
+#     log "Successfully triggered restart for Pairs Stat-Arb Executor."
+# else
+#     log "OK: Pairs Stat-Arb Executor is running."
+# fi
+
 
 # 4. Meta-Learner Auto-Retrain (Run if not recently run)
 if [[ $(( $(date +%s) / 3600 % 6 )) -eq 0 ]]; then

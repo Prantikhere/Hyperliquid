@@ -4,6 +4,7 @@
 !.env.example
 Key.txt
 AutoTradingprompt.txt
+session-*.md
 
 # === Python ===
 __pycache__/
@@ -40,6 +41,7 @@ models_local/meta_learner_stats.json
 *.swp
 *.swo
 *~
+graphify-out/
 
 # === OS ===
 .DS_Store

@@ -34,8 +34,24 @@ LAYA_ENABLED = os.getenv("LAYA_ENABLED", "true").lower() in ("1", "true", "yes")
 LAYA_VETO_PROB = float(os.getenv("LAYA_VETO_PROB", "0.70"))
 LAYA_TIMEOUT = float(os.getenv("LAYA_TIMEOUT", "30"))
 LAYA_CACHE_TTL = float(os.getenv("LAYA_CACHE_TTL", "300"))
-LAYA_CIRCUIT_AFTER = int(os.getenv("LAYA_CIRCUIT_AFTER", "3"))
-LAYA_CIRCUIT_COOLDOWN = float(os.getenv("LAYA_CIRCUIT_COOLDOWN", "120"))
+LAYA_CIRCUIT_AFTER = int(os.getenv("LAYA_CIRCUIT_AFTER", "5"))
+LAYA_CIRCUIT_COOLDOWN = float(os.getenv("LAYA_CIRCUIT_COOLDOWN", "30"))
+
+
+CALIBRATION_PROFILE_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "models_local", "laya_calibration.json"
+)
+
+def get_calibrated_profile() -> Dict[str, Any]:
+    """Load latest offline/daily calibrated parameters and Platt scaling."""
+    if os.path.exists(CALIBRATION_PROFILE_PATH):
+        try:
+            with open(CALIBRATION_PROFILE_PATH, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
 
 # Entry cross-check questions for the supervisor decision path.
 LAYA_ENTRY_QUESTIONS = {
@@ -111,12 +127,15 @@ def _regime_family(regime_str: str) -> set:
 def interpret_entry_verdict(verdict: Dict, engine_regime: str = "",
                             veto_prob: float = LAYA_VETO_PROB) -> Dict:
     """
-    Normalize a raw laya /predict payload into an entry-decision summary.
-
-    Returns:
-      entry, enter_prob, avoid_prob, regime, regime_prob, regime_mismatch,
-      conviction_norm, noul, veto, multiplier, summary
+    Normalize a raw laya /predict payload into an entry-decision summary,
+    enriched with online calibrated thresholds and Platt win probability scaling.
     """
+    calib = get_calibrated_profile()
+    if calib and "thresholds" in calib:
+        calib_veto = calib["thresholds"].get("veto_prob")
+        if calib_veto is not None and veto_prob == LAYA_VETO_PROB:
+            veto_prob = float(calib_veto)
+
     answers = (verdict or {}).get("answers", {}) or {}
 
     entry_ans = answers.get("entry", {}) or {}
@@ -124,6 +143,19 @@ def interpret_entry_verdict(verdict: Dict, engine_regime: str = "",
     probs = entry_ans.get("probabilities", {}) or {}
     enter_prob = float(probs.get("enter", 0.0))
     avoid_prob = float(probs.get("avoid", 0.0))
+
+    # Platt scaling calibrated win probability if available
+    calibrated_win_prob = enter_prob
+    if calib and "platt_scaling" in calib and enter_prob > 0.0:
+        try:
+            slope = float(calib["platt_scaling"].get("slope_a", 1.0))
+            intercept = float(calib["platt_scaling"].get("intercept_b", 0.0))
+            eps = 1e-6
+            p_clamped = max(eps, min(1.0 - eps, enter_prob))
+            logit = math.log(p_clamped / (1.0 - p_clamped))
+            calibrated_win_prob = 1.0 / (1.0 + math.exp(-(slope * logit + intercept)))
+        except Exception:
+            calibrated_win_prob = enter_prob
 
     regime_ans = answers.get("regime", {}) or {}
     regime = regime_ans.get("choice")
@@ -139,7 +171,8 @@ def interpret_entry_verdict(verdict: Dict, engine_regime: str = "",
     conviction_norm = max(0.0, min(1.0, float(conv_ans.get("score", 0.0)) / 2.0))
 
     san_ans = answers.get("sanity", {}) or {}
-    noul = float(san_ans.get("noul", san_ans.get("confidence", 0.5)) or 0.5)
+    # If sanity was explicitly evaluated, read its coherence (noul); otherwise neutral 1.0 (no false veto)
+    noul = float(san_ans.get("noul", san_ans.get("confidence", 1.0)) or 1.0) if ("sanity" in answers and answers["sanity"]) else 1.0
 
     # Veto: strong avoid probability. Never creates entries (quant-only policy).
     veto = (entry == "avoid" and avoid_prob >= veto_prob)
@@ -152,7 +185,7 @@ def interpret_entry_verdict(verdict: Dict, engine_regime: str = "",
         multiplier *= 0.95
     multiplier = max(0.85, min(1.08, multiplier))
 
-    summary = (f"entry={entry}(p={avoid_prob:.2f}/enter={enter_prob:.2f}) "
+    summary = (f"entry={entry}(p={avoid_prob:.2f}/enter={enter_prob:.2f}/calib_win={calibrated_win_prob:.2f}) "
                f"regime={regime}(p={regime_prob:.2f}) "
                f"mismatch={regime_mismatch} conviction={conviction_norm:.2f} "
                f"noul={noul:.2f} mult={multiplier:.3f}")
@@ -161,12 +194,14 @@ def interpret_entry_verdict(verdict: Dict, engine_regime: str = "",
         "entry": entry,
         "enter_prob": enter_prob,
         "avoid_prob": avoid_prob,
+        "calibrated_win_prob": round(calibrated_win_prob, 4),
         "regime": regime,
         "regime_prob": regime_prob,
         "regime_mismatch": regime_mismatch,
         "conviction_norm": conviction_norm,
         "noul": noul,
         "veto": veto,
+        "veto_threshold": veto_prob,
         "multiplier": multiplier,
         "summary": summary,
     }

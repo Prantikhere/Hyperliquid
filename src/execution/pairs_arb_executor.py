@@ -37,13 +37,13 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
 PAIRS = [("ETC", "FIL")]     # only symbol-clean validated pair, see docstring
 LOOKBACK_H = 180              # target window; HL testnet ETC 1h history cap fluctuates/shrinks over time
 MIN_CANDLES = 100             # adaptive floor -- trade on whatever history is available above this
-ENTRY_Z = 2.0
-EXIT_Z = 0.5
+ENTRY_Z = 1.50               # lowered from 2.0 for aggressive mean-reversion entries
+EXIT_Z = 0.40
 MAX_HOLD_H = 96
 LEVERAGE = 2
-PAIR_NOTIONAL_FRAC = 0.25    # reduced from 0.55 to prevent over-leverage (was causing margin issues)
+PAIR_NOTIONAL_FRAC = 0.35    # raised from 0.25 for aggressive deployment
 MIN_NOTIONAL = 11.0
-POLL_SECONDS = 3600          # hourly, matches signal timeframe
+POLL_SECONDS = 1800          # 30-min polling for faster opportunity capture
 DD_KILL = 0.15
 PEAK_FILE = os.path.join(os.path.dirname(__file__), "..", "..", "logs", ".pairs_arb_peak")
 STATE_FILE = os.path.join(os.path.dirname(__file__), "..", "..", "logs", ".pairs_arb_state")
@@ -246,18 +246,8 @@ class PairsArbExecutor:
         
         # Margin safety check: ensure we don't exceed 80% margin usage
         try:
-            import asyncio
-            from src.execution.multi_client import MultiExchangeClient
-            from dotenv import load_dotenv
-            load_dotenv()
-            
-            async def get_free_margin():
-                client = MultiExchangeClient()
-                balance = await client.hl.fetch_balance()
-                await client.hl.close()
-                return float(balance.get('free', {}).get('USDC', 0))
-            
-            free_margin = asyncio.get_event_loop().run_until_complete(get_free_margin())
+            bal = await self.hl.fetch_balance()
+            free_margin = float(bal.get('free', {}).get('USDC', 0) or 0)
             max_notional = free_margin * 0.8  # Use at most 80% of free margin
             if notional > max_notional:
                 log.warning(f"[PAIRS_ARB] Notional capped from ${notional:.2f} to ${max_notional:.2f} (free margin: ${free_margin:.2f})")
@@ -313,16 +303,25 @@ class PairsArbExecutor:
             mean_reverted = (pos == 1 and z_exit >= -EXIT_Z) or (pos == -1 and z_exit <= EXIT_Z)
             stale = held >= MAX_HOLD_H
             if mean_reverted or stale:
+                # Query exchange-truth open positions so exit closes exact remaining quantities
+                real_before = await self._positions([a, b])
+                pos_a = real_before.get(a, 0.0)
+                pos_b = real_before.get(b, 0.0)
+
                 # Each leg gets its own try/except -- a raise on leg B must not skip the
-                # exchange-truth reconciliation below (that gap is what caused the state desync).
-                try:
-                    await self._order(a, "buy" if pos == -1 else "sell", qty_a, reduce_only=True)
-                except Exception as e:
-                    log.error(f"[PAIRS_ARB] exit leg {a} failed: {e}")
-                try:
-                    await self._order(b, "sell" if pos == -1 else "buy", qty_b, reduce_only=True)
-                except Exception as e:
-                    log.error(f"[PAIRS_ARB] exit leg {b} failed: {e}")
+                # exchange-truth reconciliation below.
+                if abs(pos_a) * cur_a >= 1.0:
+                    try:
+                        side_a = "buy" if pos_a < 0 else "sell"
+                        await self._order(a, side_a, abs(pos_a), reduce_only=True)
+                    except Exception as e:
+                        log.error(f"[PAIRS_ARB] exit leg {a} failed: {e}")
+                if abs(pos_b) * cur_b >= 1.0:
+                    try:
+                        side_b = "buy" if pos_b < 0 else "sell"
+                        await self._order(b, side_b, abs(pos_b), reduce_only=True)
+                    except Exception as e:
+                        log.error(f"[PAIRS_ARB] exit leg {b} failed: {e}")
 
                 # Feedback loop: log ROI for both legs against their stored entry price.
                 entry_a, entry_b = st.get("entry_a"), st.get("entry_b")
@@ -338,6 +337,7 @@ class PairsArbExecutor:
                 flat_b = abs(real.get(b, 0.0) * cur_b) < MIN_NOTIONAL
                 if flat_a and flat_b:
                     self.state[key] = {"pos": 0}
+                    log.info(f"[PAIRS_ARB] {key} successfully fully exited and flat.")
                 else:
                     log.error(f"[PAIRS_ARB] {key} exit INCOMPLETE: real_{a}={real.get(a, 0.0):.4f} "
                               f"real_{b}={real.get(b, 0.0):.4f} -- state kept open, retrying next cycle.")

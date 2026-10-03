@@ -134,6 +134,7 @@ async def run_parallel():
         cycle_count = 0
         while True:
             try:
+                supervisor.cfg = supervisor._load_strategy_config()
                 symbols = get_symbols()
                 settlement.owned_symbols = set(symbols)  # Keep settlement universe synchronized
                 log.info(f"Trading {len(symbols)} symbols: {symbols}")

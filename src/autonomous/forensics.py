@@ -479,7 +479,7 @@ class PostTradeForensics:
         new_adj = max(0.3, min(1.2, new_adj))  # Clamp
 
         if symbol not in self.learning_module.symbol_stats:
-            self.learning_module.symbol_stats[symbol] = {}
+            self.learning_module.symbol_stats[symbol] = {'wins': 0, 'losses': 0, 'total': 0, 'total_roi': 0}
         self.learning_module.symbol_stats[symbol]['confidence_adjustment'] = new_adj
 
     def get_symbol_health(self, symbol: str) -> Dict:

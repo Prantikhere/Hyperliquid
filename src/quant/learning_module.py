@@ -123,8 +123,9 @@ class LearningModule:
         # Check per-symbol stats
         if symbol in self.symbol_stats:
             stats = self.symbol_stats[symbol]
-            win_rate = stats['wins'] / stats['total'] if stats['total'] > 0 else 0
-            avg_roi = stats['total_roi'] / stats['total'] if stats['total'] > 0 else 0
+            total = stats.get('total', 0)
+            win_rate = stats.get('wins', 0) / total if total > 0 else 0
+            avg_roi = stats.get('total_roi', 0.0) / total if total > 0 else 0
             
             # Ban symbols with <40% win rate and negative average ROI
             if win_rate < 0.40 and avg_roi < -0.02:
@@ -159,8 +160,9 @@ class LearningModule:
             return 1.0  # No data, use default
         
         stats = self.symbol_stats[symbol]
-        win_rate = stats['wins'] / stats['total'] if stats['total'] > 0 else 0
-        avg_roi = stats['total_roi'] / stats['total'] if stats['total'] > 0 else 0
+        total = stats.get('total', 0)
+        win_rate = stats.get('wins', 0) / total if total > 0 else 0
+        avg_roi = stats.get('total_roi', 0.0) / total if total > 0 else 0
         
         # Reduce confidence for symbols with poor history
         if win_rate < 0.50 and avg_roi < 0:
@@ -183,8 +185,9 @@ class LearningModule:
         # Check per-symbol stats
         if symbol in self.symbol_stats:
             stats = self.symbol_stats[symbol]
-            win_rate = stats['wins'] / stats['total'] if stats['total'] > 0 else 0
-            avg_roi = stats['total_roi'] / stats['total'] if stats['total'] > 0 else 0
+            total = stats.get('total', 0)
+            win_rate = stats.get('wins', 0) / total if total > 0 else 0
+            avg_roi = stats.get('total_roi', 0.0) / total if total > 0 else 0
             
             # Aggressive risk management for symbols with poor history
             if win_rate < 0.50 and avg_roi < -0.02:
@@ -262,12 +265,13 @@ class LearningModule:
         
         # Add historical stats
         for sym, stats in self.symbol_stats.items():
-            win_rate = stats['wins'] / stats['total'] if stats['total'] > 0 else 0
-            avg_roi = stats['total_roi'] / stats['total'] if stats['total'] > 0 else 0
+            total = stats.get('total', 0)
+            win_rate = stats.get('wins', 0) / total if total > 0 else 0
+            avg_roi = stats.get('total_roi', 0.0) / total if total > 0 else 0
             report["symbol_stats"][sym] = {
-                "trades": stats['total'],
-                "wins": stats['wins'],
-                "losses": stats['losses'],
+                "trades": total,
+                "wins": stats.get('wins', 0),
+                "losses": stats.get('losses', 0),
                 "win_rate": win_rate,
                 "avg_roi": avg_roi
             }
@@ -297,8 +301,9 @@ class LearningModule:
         # Check per-symbol stats
         if symbol in self.symbol_stats:
             stats = self.symbol_stats[symbol]
-            win_rate = stats['wins'] / stats['total'] if stats['total'] > 0 else 0
-            avg_roi = stats['total_roi'] / stats['total'] if stats['total'] > 0 else 0
+            total = stats.get('total', 0)
+            win_rate = stats.get('wins', 0) / total if total > 0 else 0
+            avg_roi = stats.get('total_roi', 0.0) / total if total > 0 else 0
             
             if win_rate < 0.40 and avg_roi < -0.02:
                 reasons.append(f"Poor historical performance: win_rate={win_rate:.1%}, avg_roi={avg_roi:.2%}")

@@ -61,7 +61,32 @@ class ParameterTuner:
         self.config_path = config_path
         self.state_file = "data/tuner_state.json"
         self.state = TuningState()
+        self._apply_mode_bounds()
         self._load_state()
+
+    def _apply_mode_bounds(self):
+        """Configure tuning bounds according to active trading mode."""
+        mode = "balanced"
+        if os.path.exists(self.config_path):
+            try:
+                with open(self.config_path, 'r') as f:
+                    cfg = json.load(f)
+                    mode = cfg.get("trading_mode", "balanced").lower()
+            except Exception:
+                pass
+        self.mode = mode
+        if mode in ("aggressive_scalp", "scalp"):
+            self.BUY_THRESHOLD_RANGE = (0.52, 0.58)
+            self.SELL_THRESHOLD_RANGE = (0.42, 0.48)
+            self.CONFIDENCE_RANGE = (0.52, 0.62)
+        elif mode == "aggressive":
+            self.BUY_THRESHOLD_RANGE = (0.50, 0.58)
+            self.SELL_THRESHOLD_RANGE = (0.42, 0.50)
+            self.CONFIDENCE_RANGE = (0.42, 0.52)
+        else:
+            self.BUY_THRESHOLD_RANGE = (0.50, 0.70)
+            self.SELL_THRESHOLD_RANGE = (0.30, 0.50)
+            self.CONFIDENCE_RANGE = (0.40, 0.65)
 
     def _load_state(self):
         if os.path.exists(self.state_file):
@@ -304,6 +329,7 @@ class ParameterTuner:
                 with open(self.config_path, 'r') as f:
                     config = json.load(f)
 
+            config["trading_mode"] = getattr(self, "mode", "aggressive")
             config["buy_threshold"] = round(self.state.current_buy_threshold, 4)
             config["sell_threshold"] = round(self.state.current_sell_threshold, 4)
             config["min_confidence"] = round(self.state.current_min_confidence, 4)

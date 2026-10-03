@@ -8,7 +8,8 @@ class RiskAgent:
     def __init__(self, db=None):
         self.risk_manager = RiskManager(db=db)
         self.max_margin_usage_pct = 80.0  # Maximum margin usage percentage
-        self.max_concurrent_positions = 4  # Maximum open positions across all symbols
+        self.max_concurrent_positions = 4  # Base maximum open positions across all symbols
+        self.max_concurrent_positions_aggressive = 7  # Expanded when circumstances permit
         self.max_drawdown_pct = 15.0  # Maximum drawdown from peak before kill switch
         self.max_single_loss_pct = 3.0  # Maximum loss per trade (3%)
         self.min_risk_reward = 1.5  # Minimum risk/reward ratio (1:1.5)
@@ -16,7 +17,7 @@ class RiskAgent:
         self.max_daily_trades_per_symbol = 6  # Maximum 6 trades per symbol per day
 
     def _check_margin_available(self):
-        """Check if margin usage is below threshold. Returns (ok, free_margin, usage_pct)."""
+        """Check if margin usage is below threshold. Returns (ok, free_margin, usage_pct, account_value)."""
         try:
             import ccxt
             import os
@@ -49,10 +50,10 @@ class RiskAgent:
 
             log.info(f"[RISK_AGENT] Margin check: account=${account_value:.2f} used=${margin_used:.2f} free=${free_margin:.2f} usage={usage_pct:.1f}%")
 
-            return usage_pct < self.max_margin_usage_pct, free_margin, usage_pct
+            return usage_pct < self.max_margin_usage_pct, free_margin, usage_pct, account_value
         except Exception as e:
             log.error(f"[RISK_AGENT] Margin check failed: {e}")
-            return False, 0.0, 100.0
+            return False, 0.0, 100.0, 0.0
 
     def evaluate_trade(self, symbol, side, confidence, current_price, regime=None, sortino=1.0, exchange_id='hyperliquid'):
         """Evaluate if a trade is within risk limits and calculate position size
@@ -61,30 +62,19 @@ class RiskAgent:
             symbol_upper = symbol.upper()
             is_major = "BTC" in symbol_upper or "ETH" in symbol_upper
 
-            # Regime-aware leverage and scale factor
-            scale_factor = 1.0
-            leverage = 5.0
-
-            if regime:
-                regime_upper = regime.upper()
-                if "MEAN_REVERTING" in regime_upper:
-                    scale_factor = 1.0
-                    if confidence >= 0.8:
-                        leverage = 10.0 if is_major else 7.0
-                elif "TRENDING" in regime_upper:
-                    scale_factor = 0.5 if is_major else 0.25
-                else:
-                    # NEUTRAL regime: increased from 0.3 to 0.6 for altcoins to ensure
-                    # position size exceeds HL testnet $10 minimum
-                    scale_factor = 0.8 if is_major else 0.6
-            else:
-                scale_factor = 1.0 if is_major else 0.5
-
-            if scale_factor <= 0.0:
-                return {"approved": False, "reason": f"Trading halted for Altcoins in {regime or 'UNKNOWN'} regime"}
-
             if not self.risk_manager.check_risk_limits():
                 return {"approved": False, "reason": "Global risk limits exceeded"}
+
+            # Check margin availability before sizing
+            margin_ok, free_margin, usage_pct, account_value = self._check_margin_available()
+            if not margin_ok:
+                return {"approved": False, "reason": f"Margin usage too high: {usage_pct:.1f}% (max: {self.max_margin_usage_pct}%)"}
+
+            # Circumstances permit margin check:
+            # - Account value securely above capital protection floor ($185.00)
+            # - Free margin ample (>= $60.00)
+            # - Current margin usage modest (< 45.0%)
+            circumstances_permit_margin = (account_value > 188.0 and free_margin >= 60.0 and usage_pct < 45.0)
 
             # MAX DRAWDOWN KILL SWITCH: Halt trading if drawdown exceeds threshold
             try:
@@ -101,21 +91,47 @@ class RiskAgent:
             except Exception:
                 pass  # Redis unavailable, skip check
 
-            # Check margin availability before sizing
-            margin_ok, free_margin, usage_pct = self._check_margin_available()
-            if not margin_ok:
-                return {"approved": False, "reason": f"Margin usage too high: {usage_pct:.1f}% (max: {self.max_margin_usage_pct}%)"}
-
             # CONCURRENT POSITION GUARD: Limit number of open positions to prevent overexposure
+            max_positions = self.max_concurrent_positions_aggressive if circumstances_permit_margin else self.max_concurrent_positions
             try:
                 import redis as _redis
                 _r = _redis.Redis(host=os.getenv('REDIS_HOST', 'localhost'), port=6379, decode_responses=True)
                 positions_key = "open_positions_count"
                 open_count = int(_r.get(positions_key) or 0)
-                if open_count >= self.max_concurrent_positions:
-                    return {"approved": False, "reason": f"Too many open positions: {open_count} (max: {self.max_concurrent_positions})"}
+                if open_count >= max_positions:
+                    return {"approved": False, "reason": f"Too many open positions: {open_count} (max: {max_positions})"}
             except Exception:
                 pass  # Redis unavailable, skip check
+
+            # Regime-aware leverage and scale factor
+            scale_factor = 1.0
+            leverage = 5.0
+
+            if regime:
+                regime_upper = regime.upper()
+                if "MEAN_REVERTING" in regime_upper:
+                    scale_factor = 1.25 if (circumstances_permit_margin and confidence >= 0.55) else 1.0
+                    if confidence >= 0.70 and circumstances_permit_margin:
+                        leverage = 10.0 if is_major else 7.0
+                    elif confidence >= 0.8:
+                        leverage = 10.0 if is_major else 7.0
+                elif "TRENDING" in regime_upper:
+                    if circumstances_permit_margin and confidence >= 0.55:
+                        scale_factor = 0.8 if is_major else 0.5
+                        leverage = 7.0 if is_major else 5.0
+                    else:
+                        scale_factor = 0.5 if is_major else 0.25
+                else:
+                    # NEUTRAL regime
+                    if circumstances_permit_margin and confidence >= 0.55:
+                        scale_factor = 1.1 if is_major else 0.85
+                    else:
+                        scale_factor = 0.8 if is_major else 0.6
+            else:
+                scale_factor = 1.2 if (circumstances_permit_margin and is_major) else (1.0 if is_major else 0.5)
+
+            if scale_factor <= 0.0:
+                return {"approved": False, "reason": f"Trading halted for Altcoins in {regime or 'UNKNOWN'} regime"}
 
             # SYMBOL DIVERSIFICATION GUARD: Limit positions per symbol and daily trades per symbol
             try:
@@ -181,6 +197,20 @@ class RiskAgent:
 
             if position_usd <= 0:
                 return {"approved": False, "reason": f"Position size 0 (scale={scale_factor:.2f}, sortino={sortino_multiplier:.2f})"}
+
+            # Circumstances permit margin expansion:
+            # When account value is healthy, free margin is abundant, and confidence is strong,
+            # scale up position size to utilize idle margin dynamically
+            if circumstances_permit_margin and confidence >= 0.65:
+                boosted_target = min(45.0, free_margin * 0.25)
+                if position_usd < boosted_target:
+                    log.info(f"[DYNAMIC_MARGIN] Circumstances permit: Boosting position_usd from ${position_usd:.2f} to ${boosted_target:.2f} (conf={confidence:.2f})")
+                    position_usd = boosted_target
+            elif circumstances_permit_margin and confidence >= 0.55:
+                boosted_target = min(30.0, free_margin * 0.20)
+                if position_usd < boosted_target:
+                    log.info(f"[DYNAMIC_MARGIN] Circumstances permit: Boosting position_usd from ${position_usd:.2f} to ${boosted_target:.2f} (conf={confidence:.2f})")
+                    position_usd = boosted_target
 
             # Enforce minimum notional for HL testnet AFTER all scaling
             # Add 10% buffer to account for HL quantity truncation and price movement

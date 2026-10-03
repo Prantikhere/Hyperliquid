@@ -13,8 +13,8 @@ class RiskManager:
         self.kelly_win_rate = float(os.getenv("KELLY_WIN_RATE", 0.55))
         self.kelly_win_loss_ratio = float(os.getenv("KELLY_WIN_LOSS_RATIO", 3.0))  # 3:1 for better growth
         self.kelly_fraction = float(os.getenv("KELLY_FRACTION", 0.20))  # 20% Kelly for faster growth
-        # Testnet hard cap: max position size in USD (increased for growth)
-        self.max_position_usd = float(os.getenv("MAX_POSITION_USD", 25.0))
+        # Testnet hard cap: max position size in USD (scaled when circumstances permit)
+        self.max_position_usd = float(os.getenv("MAX_POSITION_USD", 45.0))
 
     def calculate_kelly_fraction(self, confidence):
         """Calculate Kelly-optimal fraction of bankroll to risk.
@@ -41,7 +41,9 @@ class RiskManager:
         position_usd = self.bankroll * risk_pct * leverage
         
         if confidence > 0.7:
-            position_usd *= 1.2
+            position_usd *= 1.3
+        elif confidence > 0.55:
+            position_usd *= 1.15
         
         position_usd = min(position_usd, self.max_position_usd)
         max_risk_usd = self.bankroll * self.max_risk_per_trade_pct

@@ -15,6 +15,7 @@ from src.quant.multi_strategy import StrategyEnsemble, RiskSurface
 from src.intelligence.ensemble_model import EnsembleMetaLearner
 from src.intelligence.laya_client import (
     get_laya_client, LAYA_ENTRY_QUESTIONS, interpret_entry_verdict, LAYA_VETO_PROB,
+    get_calibrated_profile,
 )
 from src.quant.anomaly_detector import AnomalyDetector
 from src.quant.learning_module import learning_module
@@ -293,7 +294,7 @@ class SupervisorAgent:
                 # entry choice alone is what drives veto/avoid_prob. Forensics
                 # still uses the full question set async post-trade.
                 laya_verdict = self.laya_client.evaluate_blocking(
-                    laya_state, {"entry": LAYA_ENTRY_QUESTIONS["entry"]}, timeout=12.0)
+                    laya_state, {"entry": LAYA_ENTRY_QUESTIONS["entry"]}, timeout=25.0)
                 if laya_verdict:
                     laya_interp = interpret_entry_verdict(laya_verdict, engine_regime=regime)
                     with self.laya_client._lock:
@@ -302,15 +303,30 @@ class SupervisorAgent:
             except Exception as e:
                 log.warning(f"[LAYA_SUPERVISION] Synchronous Laya evaluation failed: {e}")
 
+        # Strategy mode detection for precision scalp gating
+        trading_mode = self.cfg.get("trading_mode", "aggressive").lower()
+        is_scalp = ("scalp" in trading_mode) or self.cfg.get("scalp_mode", False)
+
         # LAYA VETO & SANITY CHECK: strong avoid probability or low coherence blocks execution
+        # A veto MUST ONLY fire if Laya explicitly recommends "avoid" with high probability.
+        # It must NEVER veto when Laya's primary verdict is "enter"!
         if det_action in ("BUY", "SELL") and laya_interp:
-            if laya_interp["veto"] or laya_interp.get("avoid_prob", 0) >= 0.65:
+            calib = get_calibrated_profile()
+            thresh = calib.get("thresholds", {}) if calib else {}
+            calib_veto = float(thresh.get("veto_prob", 0.55))
+            avoid_limit = max(0.50, min(0.65, calib_veto))
+            laya_choice = laya_interp.get("entry", "enter")
+            avoid_prob = float(laya_interp.get("avoid_prob", 0.0))
+            is_laya_veto = (laya_choice == "avoid" and avoid_prob >= avoid_limit) or laya_interp.get("veto", False)
+            if is_laya_veto:
                 log.info(f"[LAYA_VETO] {symbol}: {det_action} blocked by Laya in {regime} "
-                         f"(avoid_p={laya_interp['avoid_prob']:.2f}, noul={laya_interp['noul']:.2f}, composite={composite:.2f})")
-                return {"action": "HOLD", "confidence": 0, "reason": f"Laya veto (avoid_p={laya_interp['avoid_prob']:.2f})"}
-            if laya_interp.get("noul", 1.0) < 0.40:
+                         f"(choice={laya_choice}, avoid_p={avoid_prob:.2f}, limit={avoid_limit:.2f}, composite={composite:.2f})")
+                return {"action": "HOLD", "confidence": 0, "reason": f"Laya veto (avoid_p={avoid_prob:.2f})"}
+            calib_sanity = float(thresh.get("min_sanity", 0.40))
+            sanity_limit = min(0.45, max(0.35, calib_sanity))
+            if float(laya_interp.get("noul", 1.0)) < sanity_limit:
                 log.info(f"[LAYA_SANITY] {symbol}: {det_action} blocked due to low coherence/sanity "
-                         f"(noul={laya_interp['noul']:.2f})")
+                         f"(noul={laya_interp['noul']:.2f}, limit={sanity_limit:.2f})")
                 return {"action": "HOLD", "confidence": 0, "reason": f"Laya sanity low (noul={laya_interp['noul']:.2f})"}
 
         signal = {"action": det_action, "reason": f"Quant composite {composite:.2f} in {regime}"}
@@ -341,27 +357,28 @@ class SupervisorAgent:
             signal = {"action": "HOLD", "confidence": 0, "reason": f"Churn limit breached ({exit_count} exits today)"}
             return signal
 
-        # 5. Meta-Learner Judge (sizes confidence around the quant action).
+        # 5. Meta-Learner & Laya Decision Fusion
         quant_dir = 1.0 if det_action == "BUY" else (-1.0 if det_action == "SELL" else 0.0)
         meta_features = {**quant_signals, "llm_signal": quant_dir}
         meta_confidence = self.meta_learner.predict_confidence(meta_features, rnn_result=self.strategy_ensemble.last_rnn_result)
         
-        # RESPECT META-LEARNER: Do NOT override low confidence with a floor!
-        # If the XGBoost model outputs low confidence, respect its protection.
-        signal["confidence"] = meta_confidence
-
-        # LAYA conviction/regime blend: bounded multiplier on meta-confidence
         actionable = det_action in ("BUY", "SELL")
-        if laya_interp and actionable:
-            before = signal["confidence"]
-            signal["confidence"] = max(0.0, min(1.0, before * laya_interp["multiplier"]))
-            if laya_interp["regime_mismatch"]:
-                log.info(f"[LAYA_REGIME] {symbol}: engine={regime} vs laya={laya_interp['regime']} "
-                         f"(p={laya_interp['regime_prob']:.2f}) -- confidence scaled "
-                         f"{before:.3f} -> {signal['confidence']:.3f}")
-            elif abs(signal["confidence"] - before) > 0.005:
-                log.debug(f"[LAYA] {symbol} confidence {before:.3f} -> "
-                          f"{signal['confidence']:.3f} ({laya_interp['summary']})")
+        if laya_interp and actionable and laya_interp.get("entry") == "enter":
+            # Laya approved this setup: fuse Laya's calibrated win probability directly into confidence
+            laya_win_prob = float(laya_interp.get("calibrated_win_prob", laya_interp.get("enter_prob", 0.60)))
+            fused_conf = 0.50 * laya_win_prob + 0.30 * composite + 0.20 * meta_confidence
+            fused_conf = max(0.0, min(1.0, fused_conf * laya_interp.get("multiplier", 1.0)))
+            signal["confidence"] = round(fused_conf, 4)
+            log.info(f"[LAYA_FUSION] {symbol}: Fused confidence {signal['confidence']:.3f} "
+                     f"(Laya win={laya_win_prob:.2f} [50%], composite={composite:.2f} [30%], meta={meta_confidence:.2f} [20%])")
+        else:
+            signal["confidence"] = meta_confidence
+            if laya_interp and actionable:
+                signal["confidence"] = max(0.0, min(1.0, signal["confidence"] * laya_interp["multiplier"]))
+
+        if laya_interp and actionable and laya_interp.get("regime_mismatch"):
+            log.info(f"[LAYA_REGIME] {symbol}: engine={regime} vs laya={laya_interp['regime']} "
+                     f"(p={laya_interp['regime_prob']:.2f})")
 
         # SHADOW: case-based recall from vector memory
         mem_context = {
@@ -381,6 +398,10 @@ class SupervisorAgent:
             min_conf = float(tuner_min_conf)
         else:
             min_conf = float(self.cfg.get("min_confidence", 0.55))
+        if is_scalp:
+            min_conf = max(0.55, min_conf)
+            if laya_interp and laya_interp.get("entry") == "enter":
+                min_conf = min(min_conf, 0.58)
         log.debug(f"[DECISION_DEBUG] {symbol}: det_action={det_action}, signal_action={signal.get('action')}, confidence={signal.get('confidence', 0):.2f}, composite={composite:.2f}, min_conf={min_conf:.2f}")
         if signal["action"] == "HOLD" or signal["confidence"] < min_conf:
             log.info(f"[{exchange_id}] Decision: HOLD {symbol} (conf={signal['confidence']:.2f}, req={min_conf:.2f}) | composite={composite:.2f} | regime={regime}")
