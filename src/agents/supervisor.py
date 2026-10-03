@@ -234,16 +234,11 @@ class SupervisorAgent:
         whitelist = self._get_whitelist(exchange_id)
         symbol_ok = (symbol in whitelist) if whitelist else False
         
-        # DEAD & TOXIC SYMBOL CHECK: Skip symbols with broken oracle/exchange feeds or severe failure history
-        EXCLUDED_SYMBOLS = {
-            "NEAR/USDT", "FIL/USDT", "HBAR/USDT", "2Z/USDT",
-            "VVV/USDT", "APT/USDT", "ADA/USDT", "AR/USDT", "AVAX/USDT", "JUP/USDT"
-        }
-        cfg_blacklist = set(self.cfg.get("symbol_blacklist", []))
-        all_excluded = EXCLUDED_SYMBOLS | cfg_blacklist
-        if symbol in all_excluded:
-            log.info(f"[EXCLUDED_SYMBOL] {symbol} on {exchange_id} is permanently excluded/blacklisted. Skipping.")
-            return {"action": "HOLD", "confidence": 0, "reason": f"Excluded toxic symbol: {symbol}"}
+        # DEAD & BROKEN FEED SYMBOLS ONLY (tokens with no valid market or permanently non-functional feeds)
+        EXCLUDED_SYMBOLS = {"NEAR/USDT", "FIL/USDT", "HBAR/USDT"}
+        if symbol in EXCLUDED_SYMBOLS:
+            log.debug(f"[EXCLUDED_SYMBOL] {symbol} on {exchange_id} is excluded (unsupported feed). Skipping.")
+            return {"action": "HOLD", "confidence": 0, "reason": f"Excluded symbol: {symbol}"}
 
         dead_key = f"dead_symbols:{exchange_id}"
         dead_symbols = self.redis.smembers(dead_key)
@@ -336,30 +331,12 @@ class SupervisorAgent:
 
         signal = {"action": det_action, "reason": f"Quant composite {composite:.2f} in {regime}"}
 
-        # CHURN GUARD: Check if this symbol is in cooldown after a recent exit
-        cooldown_key = f"entry_cooldown:{exchange_id}:{symbol}"
-        cooldown_until = self.redis.get(cooldown_key)
-        if cooldown_until:
-            remaining = float(cooldown_until) - _time.time()
-            if remaining > 0:
-                log.info(f"[CHURN_GUARD] {symbol} on {exchange_id}: in cooldown for {remaining:.0f}s more. Blocking entry.")
-                signal = {"action": "HOLD", "confidence": 0, "reason": f"Cooldown active ({remaining:.0f}s remaining)"}
-                return signal
-
         # SESSION LOSS GUARD: Check if we've lost too much today
         session_loss_key = f"session_realized_pnl:{_time.time() // 86400}"
         session_loss = float(self.redis.get(session_loss_key) or 0)
         if session_loss < -5.0:  # More than $5 lost today
             log.warning(f"[SESSION_GUARD] Daily realized loss ${session_loss:.2f} exceeds $5 limit. Blocking new entries.")
             signal = {"action": "HOLD", "confidence": 0, "reason": f"Session loss limit breached: ${session_loss:.2f}"}
-            return signal
-
-        # CHURN GUARD: Check exit count for this symbol today
-        exit_count_key = f"exit_count:{exchange_id}:{symbol}:{int(_time.time() / 86400)}"
-        exit_count = int(self.redis.get(exit_count_key) or 0)
-        if exit_count >= 4:
-            log.warning(f"[CHURN_GUARD] {symbol} on {exchange_id}: {exit_count} exits today. Blocking re-entry.")
-            signal = {"action": "HOLD", "confidence": 0, "reason": f"Churn limit breached ({exit_count} exits today)"}
             return signal
 
         # 5. Meta-Learner & Laya Decision Fusion

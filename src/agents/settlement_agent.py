@@ -276,17 +276,10 @@ class SettlementAgent:
                     
                     mapped_symbol = self.execution_agent.multi_client._get_mapped_symbol(exchange_id, symbol)
                     
-                    # CHURN GUARD: Record exit time and cooldown for this symbol
-                    # Prevents the system from immediately re-entering the same position
-                    cooldown_key = f"entry_cooldown:{exchange_id}:{symbol}"
-                    self.redis.set(cooldown_key, time.time(), ex=3600)  # 1h cooldown
-                    # Track exit count for churn detection
+                    # Track exit count for reporting/metrics (without blocking cooldown)
                     exit_count_key = f"exit_count:{exchange_id}:{symbol}:{int(time.time() / 86400)}"
                     current_exit_count = int(self.redis.get(exit_count_key) or 0)
                     self.redis.set(exit_count_key, current_exit_count + 1, ex=172800)  # 48h TTL
-                    if current_exit_count + 1 >= 5:
-                        log.warning(f"[CHURN_GUARD] {symbol} on {exchange_id}: {current_exit_count + 1} exits today. Increasing cooldown to 4h.")
-                        self.redis.set(cooldown_key, time.time(), ex=14400)  # Extend to 4h
                     
                     # Instead of skipping, cancel any existing stale open orders for this symbol
                     for order in open_orders:

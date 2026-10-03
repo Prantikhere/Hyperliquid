@@ -29,18 +29,6 @@
     "LIT/USDT",
     "OP/USDT"
   ],
-  "symbol_blacklist": [
-    "VVV/USDT",
-    "APT/USDT",
-    "ADA/USDT",
-    "AR/USDT",
-    "AVAX/USDT",
-    "JUP/USDT",
-    "NEAR/USDT",
-    "FIL/USDT",
-    "HBAR/USDT",
-    "2Z/USDT"
-  ],
   "_backtest": {
     "buy_threshold": 0.55,
     "sell_threshold": 0.45,
