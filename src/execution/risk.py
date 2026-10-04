@@ -13,8 +13,8 @@ class RiskManager:
         self.kelly_win_rate = float(os.getenv("KELLY_WIN_RATE", 0.55))
         self.kelly_win_loss_ratio = float(os.getenv("KELLY_WIN_LOSS_RATIO", 3.0))  # 3:1 for better growth
         self.kelly_fraction = float(os.getenv("KELLY_FRACTION", 0.20))  # 20% Kelly for faster growth
-        # Testnet hard cap: max position size in USD (scaled when circumstances permit)
-        self.max_position_usd = float(os.getenv("MAX_POSITION_USD", 45.0))
+        # Hard cap: max position size in USD (scaled for realistic scalp PnL)
+        self.max_position_usd = float(os.getenv("MAX_POSITION_USD", 135.0))
 
     def calculate_kelly_fraction(self, confidence):
         """Calculate Kelly-optimal fraction of bankroll to risk.
@@ -25,37 +25,34 @@ class RiskManager:
         kelly = (b * p - q) / b if b > 0 else 0.0
         kelly = max(kelly, 0.0)
         fraction = kelly * self.kelly_fraction * min(confidence / 0.6, 1.0)
-        return min(fraction, 0.10)
+        return min(fraction, 0.12)
 
     def calculate_position_size(self, confidence, price, leverage=5.0):
-        """Calculate position size using Kelly criterion with testnet-aware capping."""
+        """Calculate position size using Kelly criterion with scalp-aware sizing."""
         from src.utils.logger import log
         if confidence < 0.4:
             log.debug(f"[RISK_CALC] Early return: confidence={confidence:.2f} < 0.4")
             return 0
 
         kelly_risk = self.calculate_kelly_fraction(confidence)
-        base_risk_pct = 0.10  # 10% base risk for growth
+        base_risk_pct = 0.12  # 12% base allocation for realistic scalp profit
         risk_pct = max(kelly_risk, base_risk_pct)
 
+        # Leveraged notional position = bankroll * risk_pct * leverage
         position_usd = self.bankroll * risk_pct * leverage
         
         if confidence > 0.7:
-            position_usd *= 1.3
+            position_usd *= 1.25
         elif confidence > 0.55:
-            position_usd *= 1.15
+            position_usd *= 1.10
         
         position_usd = min(position_usd, self.max_position_usd)
-        max_risk_usd = self.bankroll * self.max_risk_per_trade_pct
-        position_usd = min(position_usd, max_risk_usd)
 
-        log.debug(f"[RISK_CALC] bankroll=${self.bankroll:.2f}, risk_pct={risk_pct:.4f}, leverage={leverage:.1f}, position=${position_usd:.2f}, max_pos=${self.max_position_usd:.2f}, max_risk=${max_risk_usd:.2f}")
+        log.debug(f"[RISK_CALC] bankroll=${self.bankroll:.2f}, risk_pct={risk_pct:.4f}, leverage={leverage:.1f}, position=${position_usd:.2f}, max_pos=${self.max_position_usd:.2f}")
 
-        # Do NOT zero out below the $10 exchange minimum here. RiskAgent applies
-        # an $11 floor after regime/session/Sortino scaling; returning 0 made
-        # that floor unreachable and permanently blocked every entry.
-        if position_usd < 10.0:
-            log.debug(f"[RISK_CALC] Position ${position_usd:.2f} < $10 exchange min (RiskAgent will floor if viable)")
+        # Do NOT zero out below exchange minimum here; RiskAgent floors appropriately
+        if position_usd < 12.0:
+            log.debug(f"[RISK_CALC] Position ${position_usd:.2f} < $12 exchange min")
 
         return position_usd
 

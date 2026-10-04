@@ -71,10 +71,9 @@ class RiskAgent:
                 return {"approved": False, "reason": f"Margin usage too high: {usage_pct:.1f}% (max: {self.max_margin_usage_pct}%)"}
 
             # Circumstances permit margin check:
-            # - Account value securely above capital protection floor ($185.00) with solid buffer (>= $200.00)
-            # - Free margin ample (>= $80.00)
-            # - Current margin usage modest (< 35.0%)
-            circumstances_permit_margin = (account_value >= 200.0 and free_margin >= 80.0 and usage_pct < 35.0)
+            # - Free margin ample (>= $45.00)
+            # - Current margin usage modest (< 50.0%)
+            circumstances_permit_margin = (free_margin >= 45.0 and usage_pct < 50.0)
 
             # MAX DRAWDOWN KILL SWITCH: Halt trading if drawdown exceeds threshold
             try:
@@ -92,8 +91,7 @@ class RiskAgent:
                 pass  # Redis unavailable, skip check
 
             # CONCURRENT POSITION GUARD: Limit number of open positions to prevent overexposure
-            # Under capital preservation (< $200 equity), strictly cap to max 3 concurrent positions
-            max_positions = 3 if account_value < 200.0 else (self.max_concurrent_positions_aggressive if circumstances_permit_margin else self.max_concurrent_positions)
+            max_positions = 3 if free_margin < 75.0 else self.max_concurrent_positions
             try:
                 import redis as _redis
                 _r = _redis.Redis(host=os.getenv('REDIS_HOST', 'localhost'), port=6379, decode_responses=True)
@@ -192,40 +190,43 @@ class RiskAgent:
 
             # Apply Sortino risk-adjusted multiplier (0.75 to 2.0)
             # Floor at 0.75 to fit HL testnet margin limits while clearing $10 minimum
-            sortino_multiplier = float(np.clip(sortino, 0.75, 2.0))
+            try:
+                sortino_val = float(sortino)
+            except (ValueError, TypeError):
+                sortino_val = 1.0
+            sortino_multiplier = float(np.clip(sortino_val, 0.75, 2.0))
             position_usd = position_usd * sortino_multiplier
-            log.debug(f"[RISK_DEBUG] {symbol}: after_sortino=${position_usd:.2f}, sortino={sortino:.2f}, multiplier={sortino_multiplier:.2f}")
+            log.debug(f"[RISK_DEBUG] {symbol}: after_sortino=${position_usd:.2f}, sortino={sortino_val:.2f}, multiplier={sortino_multiplier:.2f}")
 
             if position_usd <= 0:
                 return {"approved": False, "reason": f"Position size 0 (scale={scale_factor:.2f}, sortino={sortino_multiplier:.2f})"}
 
-            # Floor-Aware Capital Preservation Sizing:
-            # When near the capital floor ($185.00), position margin MUST be strictly controlled ($11.00 - $13.50)
-            # so that an entire stop-loss hit (-0.85%) loses at most ~$0.55, keeping equity securely above the floor.
-            floor_buffer = max(0.0, account_value - 185.0)
-            if account_value < 200.0 or not circumstances_permit_margin:
-                position_usd = min(13.50, max(11.0, position_usd))
-                log.info(f"[CAPITAL_GUARD] Floor buffer ${floor_buffer:.2f}: Margin capped to ${position_usd:.2f} (max risk ~$0.55 on SL)")
-            elif circumstances_permit_margin and confidence >= 0.75:
-                boosted_target = min(25.0, free_margin * 0.15)
-                if position_usd < boosted_target:
-                    log.info(f"[DYNAMIC_MARGIN] Robust buffer: position_usd ${position_usd:.2f} -> ${boosted_target:.2f}")
-                    position_usd = boosted_target
+            # Scalp Sizing (Sized for realistic PnL growth per user directive):
+            # Target notional $75 - $135 depending on confidence & regime (Margin $15 - $27 at 5x leverage)
+            # Max SL risk per trade: -$0.64 to -$1.15 (<0.6% of equity)
+            # TP reward per trade: +$1.35 to +$2.43
+            if circumstances_permit_margin and confidence >= 0.72:
+                target_notional = min(135.0, max(100.0, position_usd))
+            elif confidence >= 0.60:
+                target_notional = min(105.0, max(75.0, position_usd))
+            else:
+                target_notional = min(85.0, max(65.0, position_usd))
 
-            # Enforce minimum notional for HL testnet AFTER all scaling
-            # Add 10% buffer to account for HL quantity truncation and price movement
-            if position_usd < 10.0:
-                position_usd = 11.0  # $11 buffer above $10 minimum
+            position_usd = target_notional
 
-            # Hard cap: never risk more than 25% of bankroll on a single position
-            max_position = self.risk_manager.bankroll * 0.25
-            if position_usd > max_position:
-                position_usd = max_position
+            # Ensure margin required doesn't exceed 30% of free margin
+            req_margin = position_usd / max(1.0, leverage)
+            if req_margin > free_margin * 0.30:
+                position_usd = free_margin * 0.30 * leverage
+                log.info(f"[RISK_AGENT] Notional clamped to 30% free margin: ${position_usd:.2f}")
 
-            # Ensure position doesn't exceed available free margin
-            if position_usd > free_margin:
-                position_usd = free_margin
-                log.warning(f"[RISK_AGENT] Position capped to available margin: ${position_usd:.2f}")
+            # Enforce minimum notional for HL ($10 minimum, using $12 floor)
+            if position_usd < 12.0:
+                position_usd = 12.0
+
+            # Absolute hard cap on notional: $135.0
+            position_usd = min(135.0, position_usd)
+
 
             quantity = position_usd / current_price
 
