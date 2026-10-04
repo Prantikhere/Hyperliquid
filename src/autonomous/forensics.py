@@ -371,23 +371,9 @@ class PostTradeForensics:
         return lessons.get(failure_mode, f"{symbol} {side}: {roi:.1f}% ROI in {regime}")
 
     def _should_ban(self, trade_data: Dict, roi: float, failure_mode: str) -> bool:
-        """Determine if the symbol should be temporarily banned."""
-        # Check historical performance
-        if self.learning_module:
-            stats = self.learning_module.symbol_stats.get(trade_data.get('symbol', ''), {})
-            total = stats.get('total', 0)
-            losses = stats.get('losses', 0)
-            win_rate = (total - losses) / total if total > 0 else 0.5
-
-            # Ban if catastrophic loss
-            if roi <= self.CATASTROPHIC_LOSS:
-                return True
-
-            # Ban if repeated failures (3+ losses in a row)
-            if total >= 3 and win_rate < 0.33:
-                return True
-
+        """Determine if the symbol should be temporarily banned (Disabled: user constraint strictly prohibits pair blacklisting)."""
         return False
+
 
     def _calculate_confidence_adjustment(self, trade_data: Dict, failure_mode: str) -> float:
         """Calculate how much to adjust confidence for future trades on this symbol."""
@@ -494,7 +480,7 @@ class PostTradeForensics:
             return {"status": "no_data"}
 
         return {
-            "status": "banned" if data.get("should_ban") == "True" else "active",
+            "status": "active",
             "last_failure_mode": data.get("last_failure_mode", "UNKNOWN"),
             "last_roi": float(data.get("last_roi", 0)),
             "severity": data.get("last_severity", "UNKNOWN"),

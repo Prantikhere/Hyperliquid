@@ -114,45 +114,9 @@ class LearningModule:
         return "NORMAL"
     
     def should_trade_symbol(self, symbol, exchange):
-        """Check if we should trade this symbol based on past failures."""
-        # CRITICAL: Check if symbol is banned (catastrophic loss >10%)
-        if symbol in self.banned_symbols:
-            log.warning(f"[CAPITAL_PROTECTION] BANNED: {symbol} - catastrophic loss in history")
-            return False
-        
-        # Check per-symbol stats
-        if symbol in self.symbol_stats:
-            stats = self.symbol_stats[symbol]
-            total = stats.get('total', 0)
-            win_rate = stats.get('wins', 0) / total if total > 0 else 0
-            avg_roi = stats.get('total_roi', 0.0) / total if total > 0 else 0
-            
-            # Ban symbols with <40% win rate and negative average ROI
-            if win_rate < 0.40 and avg_roi < -0.02:
-                log.warning(f"[CAPITAL_PROTECTION] AVOIDING {symbol}: win_rate={win_rate:.1%}, avg_roi={avg_roi:.2%}")
-                return False
-        
-        # Check for repeated failures
-        repeated_failures = [
-            f for f in self.failure_patterns["repeated_failures"]
-            if f.get("symbol") == symbol and f.get("exchange") == exchange
-        ]
-        
-        if len(repeated_failures) >= 3:
-            log.warning(f"AVOIDING {symbol} on {exchange}: {len(repeated_failures)} past failures")
-            return False
-        
-        # Check for recent large losses
-        recent_large_losses = [
-            f for f in self.failure_patterns["large_losses"]
-            if f.get("symbol") == symbol and f.get("exchange") == exchange
-        ]
-        
-        if len(recent_large_losses) >= 2:
-            log.warning(f"CAUTION: {symbol} on {exchange}: {len(recent_large_losses)} large losses")
-            return False
-        
+        """Check if we should trade this symbol (Non-blocking: user constraint strictly prohibits pair blacklisting or cooldowns)."""
         return True
+
     
     def get_symbol_confidence_adjustment(self, symbol):
         """Get confidence adjustment based on historical performance."""

@@ -182,15 +182,9 @@ class AutonomousBrain:
         return forensics
 
     def _ban_symbol(self, symbol: str, reason: str):
-        """Ban a symbol from trading (both Redis and LearningModule)."""
-        # Redis ban (for cross-process visibility)
-        if self.redis:
-            self.redis.sadd("banned_symbols", symbol)
-            self.redis.set(f"ban_reason:{symbol}", reason, ex=86400 * 7)
-        # LearningModule ban (for in-process consistency)
-        if self.learning_module:
-            self.learning_module.banned_symbols.add(symbol)
-        log.warning(f"[BRAIN] Banned {symbol}: {reason}")
+        """Record forensic flag on symbol without hard banning (user directive forbids blacklisting)."""
+        log.info(f"[BRAIN] Symbol notice for {symbol}: {reason} (banning disabled per user constraint)")
+
 
     def _cross_module_learning(self, forensics: TradeForensics):
         """Coordinate learning across modules."""
@@ -284,19 +278,12 @@ class AutonomousBrain:
         reason = "No autonomous signal"
         strategy_weight = 1.0
 
-        # Check forensics
+        # Check forensics (adjust confidence rather than hard-banning per user constraint)
         health = self.forensics.get_symbol_health(symbol)
-        if health.get("status") == "banned":
-            should_trade = False
-            reason = f"Banned: {health.get('last_failure_mode', 'unknown')}"
-        elif health.get("confidence_adjustment", 1.0) != 1.0:
+        if health.get("confidence_adjustment", 1.0) != 1.0:
             confidence_adj *= health["confidence_adjustment"]
             reason = f"Adjusted: {health.get('last_failure_mode', 'unknown')}"
 
-        # Check LearningModule's banned symbols (unified banning)
-        if self.learning_module and symbol in getattr(self.learning_module, 'banned_symbols', set()):
-            should_trade = False
-            reason = f"Banned by LearningModule: catastrophic loss history"
 
         # Check lifecycle
         lifecycle_health = self.lifecycle.get_symbol_health(symbol)
