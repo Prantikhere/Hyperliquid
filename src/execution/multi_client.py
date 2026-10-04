@@ -52,38 +52,72 @@ class MultiExchangeClient:
                 lev = int(leverage) if leverage else 5
                 self.hl_sdk.set_leverage(coin, lev)
             
-            # HL testnet: IOC market orders fail (no resting orders to match)
-            # Use GTC limit orders crossing the spread via L2 snapshot for exits, and close to oracle for entries
+            # Live L2 orderbook snapshot
+            l2 = None
+            bids, asks = [], []
+            try:
+                l2 = self.hl_sdk.info.l2_snapshot(coin)
+                bids = l2.get("levels", [[]])[0]
+                asks = l2.get("levels", [[], []])[1] if len(l2.get("levels", [])) > 1 else []
+            except Exception as e:
+                log.warning(f"[HL_L2] Failed to get snapshot for {coin}: {e}")
+
+            # Check spread on entries: prevent entering on wide/illiquid spreads
+            if not reduce_only and bids and asks:
+                best_bid = float(bids[0]["px"])
+                best_ask = float(asks[0]["px"])
+                if best_bid > 0:
+                    spread_pct = (best_ask - best_bid) / best_bid
+                    if spread_pct > 0.0020:  # 0.20% max allowed spread for entry
+                        log.warning(f"[SPREAD_GUARD] {coin} entry blocked: spread too wide ({spread_pct*100:.2f}% > 0.20%)")
+                        return {"error": f"Spread too wide: {spread_pct*100:.2f}% > 0.20%"}
+
             oracle_px = self.hl_sdk._get_oracle_px(coin)
             if oracle_px <= 0:
                 return {"error": f"Cannot get oracle price for {coin}"}
             
             if reduce_only:
-                # Exiting an open position: check live L2 book to cross spread for immediate fill
-                try:
-                    l2 = self.hl_sdk.info.l2_snapshot(coin)
-                    bids = l2.get("levels", [[]])[0]
-                    asks = l2.get("levels", [[], []])[1] if len(l2.get("levels", [])) > 1 else []
-                    if is_buy and asks:
-                        limit_px = float(asks[0]["px"])
-                    elif not is_buy and bids:
-                        limit_px = float(bids[0]["px"])
-                    else:
-                        limit_px = oracle_px * (1.005 if is_buy else 0.995)
-                except Exception as e:
-                    log.warning(f"[HL_EXIT] L2 snapshot failed for {coin}: {e}, falling back to oracle offset")
+                # Exiting open position: cross spread to best bid/ask
+                if is_buy and asks:
+                    limit_px = float(asks[0]["px"])
+                elif not is_buy and bids:
+                    limit_px = float(bids[0]["px"])
+                else:
                     limit_px = oracle_px * (1.005 if is_buy else 0.995)
-                
-                # Clamp within Hyperliquid's acceptable oracle band (2.5%) to prevent "Price too far from oracle"
+                # Clamp within 2.5% oracle band
                 limit_px = max(oracle_px * 0.975, min(oracle_px * 1.025, limit_px))
-            elif is_buy:
-                limit_px = oracle_px * 1.003  # Buy slightly above oracle to minimize entry slippage
             else:
-                limit_px = oracle_px * 0.997  # Sell slightly below oracle to minimize entry slippage
+                # Entering new position: match immediate liquidity
+                if is_buy and asks:
+                    limit_px = float(asks[0]["px"])
+                elif not is_buy and bids:
+                    limit_px = float(bids[0]["px"])
+                else:
+                    limit_px = oracle_px * (1.002 if is_buy else 0.998)
+                limit_px = max(oracle_px * 0.98, min(oracle_px * 1.02, limit_px))
             
-            return self.hl_sdk.place_limit_order(
+            order_res = self.hl_sdk.place_limit_order(
                 coin, is_buy, quantity, limit_px, reduce_only=reduce_only, tif="Gtc"
             )
+
+            # Prevent stale resting entry orders: if entry order rests, wait 2.5s; if still unfilled, cancel!
+            if not reduce_only and order_res and order_res.get("id"):
+                oid = order_res.get("id")
+                if order_res.get("status") == "resting":
+                    await asyncio.sleep(2.5)
+                    try:
+                        open_orders = self.hl_sdk.get_open_orders()
+                        still_open = any(str(o.get("oid")) == str(oid) for o in open_orders)
+                        if still_open:
+                            log.warning(f"[HL_EXEC] Entry order {oid} for {coin} did not fill within 2.5s. Cancelling resting order.")
+                            self.hl_sdk.cancel_order(coin, int(oid))
+                            return {"error": f"Entry order {oid} rested and was canceled to prevent stale adverse fill", "status": "UNFILLED"}
+                        else:
+                            order_res["status"] = "filled"
+                    except Exception as ex_chk:
+                        log.warning(f"[HL_EXEC] Check resting order error: {ex_chk}")
+
+            return order_res
 
         # BingX uses ccxt
         try:

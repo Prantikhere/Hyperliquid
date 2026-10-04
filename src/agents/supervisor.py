@@ -167,7 +167,8 @@ class SupervisorAgent:
                 **quant_signals, "er": er, "vol_ratio": vol_ratio
             })
             if is_anom:
-                log.warning(f"[SHADOW-ANOMALY] {symbol}: structural-break outlier flagged (score={anom_score:.3f}, er={er:.2f}, vol_ratio={vol_ratio:.2f})")
+                log.warning(f"[SHADOW-ANOMALY] {symbol}: structural-break outlier flagged (score={anom_score:.3f}, er={er:.2f}, vol_ratio={vol_ratio:.2f}) -- BLOCKING ENTRY")
+                return {"action": "HOLD", "confidence": 0, "reason": f"Structural anomaly flagged: {anom_score:.3f}"}
         except Exception as e:
             log.debug(f"[SHADOW-ANOMALY] skipped: {e}")
         
@@ -278,6 +279,23 @@ class SupervisorAgent:
         else:
             det_action = "HOLD"
             log.debug(f"[ENTRY_DEBUG] {symbol}: HOLD: composite={composite:.2f}, regime={regime}, symbol_ok={symbol_ok}, buy_th={buy_th}, uptrend={uptrend}")
+
+        # Multi-timeframe trend alignment guard: never buy into a dual Bearish macro trend
+        if det_action == "BUY" and (trend_1h == "Bearish" and trend_4h == "Bearish"):
+            log.info(f"[TREND_GUARD] {symbol}: BUY blocked -- fighting dual Bearish macro trend (1h={trend_1h}, 4h={trend_4h})")
+            det_action = "HOLD"
+        elif det_action == "SELL" and (trend_1h == "Bullish" and trend_4h == "Bullish"):
+            log.info(f"[TREND_GUARD] {symbol}: SELL blocked -- fighting dual Bullish macro trend (1h={trend_1h}, 4h={trend_4h})")
+            det_action = "HOLD"
+
+        # RSI Extreme guard: do not chase overbought tops or oversold bottoms
+        rsi_val = quant_signals.get("momentum", 0.5) * 100
+        if det_action == "BUY" and rsi_val > 68.0:
+            log.info(f"[RSI_GUARD] {symbol}: BUY blocked -- overbought top (RSI={rsi_val:.1f})")
+            det_action = "HOLD"
+        elif det_action == "SELL" and rsi_val < 32.0:
+            log.info(f"[RSI_GUARD] {symbol}: SELL blocked -- oversold bottom (RSI={rsi_val:.1f})")
+            det_action = "HOLD"
 
         # DEEP LAYA SUPERVISION: If an actionable signal was proposed, ensure Laya evaluates it directly
         # Even if it takes a few seconds, decisions must be vetted and verified before capital execution.
@@ -433,6 +451,19 @@ class SupervisorAgent:
             } if laya_interp else None),
         }
         
+        # On-chain live double-entry prevention: verify against real Hyperliquid state
+        if exchange_id == "hyperliquid" and signal["action"] in ("BUY", "SELL"):
+            try:
+                coin = symbol.replace("/USDT", "")
+                hl_positions = self.execution_agent.multi_client.hl_sdk.get_positions()
+                for p in hl_positions:
+                    pos = p.get("position", p)
+                    if pos.get("coin") == coin and abs(float(pos.get("szi", 0))) > 0:
+                        log.info(f"[POSITION_GUARD] {symbol} on {exchange_id}: position already active on-chain (size={pos.get('szi')}). Aborting new entry.")
+                        return {"action": "HOLD", "confidence": 0, "reason": f"Already open on-chain ({pos.get('szi')})"}
+            except Exception as e:
+                log.warning(f"[POSITION_GUARD] Live check error: {e}")
+
         log.info(f"[{exchange_id}] EXECUTING VERIFIED TRADE: {signal['action']} for {symbol}")
         result = await self.execution_agent.execute_trade(risk_evaluation)
         

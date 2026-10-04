@@ -71,10 +71,10 @@ class RiskAgent:
                 return {"approved": False, "reason": f"Margin usage too high: {usage_pct:.1f}% (max: {self.max_margin_usage_pct}%)"}
 
             # Circumstances permit margin check:
-            # - Account value securely above capital protection floor ($185.00)
-            # - Free margin ample (>= $60.00)
-            # - Current margin usage modest (< 45.0%)
-            circumstances_permit_margin = (account_value > 188.0 and free_margin >= 60.0 and usage_pct < 45.0)
+            # - Account value securely above capital protection floor ($185.00) with solid buffer (>= $200.00)
+            # - Free margin ample (>= $80.00)
+            # - Current margin usage modest (< 35.0%)
+            circumstances_permit_margin = (account_value >= 200.0 and free_margin >= 80.0 and usage_pct < 35.0)
 
             # MAX DRAWDOWN KILL SWITCH: Halt trading if drawdown exceeds threshold
             try:
@@ -92,7 +92,8 @@ class RiskAgent:
                 pass  # Redis unavailable, skip check
 
             # CONCURRENT POSITION GUARD: Limit number of open positions to prevent overexposure
-            max_positions = self.max_concurrent_positions_aggressive if circumstances_permit_margin else self.max_concurrent_positions
+            # Under capital preservation (< $200 equity), strictly cap to max 3 concurrent positions
+            max_positions = 3 if account_value < 200.0 else (self.max_concurrent_positions_aggressive if circumstances_permit_margin else self.max_concurrent_positions)
             try:
                 import redis as _redis
                 _r = _redis.Redis(host=os.getenv('REDIS_HOST', 'localhost'), port=6379, decode_responses=True)
@@ -198,18 +199,17 @@ class RiskAgent:
             if position_usd <= 0:
                 return {"approved": False, "reason": f"Position size 0 (scale={scale_factor:.2f}, sortino={sortino_multiplier:.2f})"}
 
-            # Circumstances permit margin expansion:
-            # When account value is healthy, free margin is abundant, and confidence is strong,
-            # scale up position size to utilize idle margin dynamically
-            if circumstances_permit_margin and confidence >= 0.65:
-                boosted_target = min(45.0, free_margin * 0.25)
+            # Floor-Aware Capital Preservation Sizing:
+            # When near the capital floor ($185.00), position margin MUST be strictly controlled ($11.00 - $13.50)
+            # so that an entire stop-loss hit (-0.85%) loses at most ~$0.55, keeping equity securely above the floor.
+            floor_buffer = max(0.0, account_value - 185.0)
+            if account_value < 200.0 or not circumstances_permit_margin:
+                position_usd = min(13.50, max(11.0, position_usd))
+                log.info(f"[CAPITAL_GUARD] Floor buffer ${floor_buffer:.2f}: Margin capped to ${position_usd:.2f} (max risk ~$0.55 on SL)")
+            elif circumstances_permit_margin and confidence >= 0.75:
+                boosted_target = min(25.0, free_margin * 0.15)
                 if position_usd < boosted_target:
-                    log.info(f"[DYNAMIC_MARGIN] Circumstances permit: Boosting position_usd from ${position_usd:.2f} to ${boosted_target:.2f} (conf={confidence:.2f})")
-                    position_usd = boosted_target
-            elif circumstances_permit_margin and confidence >= 0.55:
-                boosted_target = min(30.0, free_margin * 0.20)
-                if position_usd < boosted_target:
-                    log.info(f"[DYNAMIC_MARGIN] Circumstances permit: Boosting position_usd from ${position_usd:.2f} to ${boosted_target:.2f} (conf={confidence:.2f})")
+                    log.info(f"[DYNAMIC_MARGIN] Robust buffer: position_usd ${position_usd:.2f} -> ${boosted_target:.2f}")
                     position_usd = boosted_target
 
             # Enforce minimum notional for HL testnet AFTER all scaling
