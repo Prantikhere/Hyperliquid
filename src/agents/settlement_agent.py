@@ -144,8 +144,8 @@ class SettlementAgent:
                 tp_threshold *= adjustments["take_profit_multiplier"]
                 sl_threshold *= adjustments["stop_loss_multiplier"]
                 if is_scalp:
-                    tp_threshold = max(0.0080, min(0.0300, tp_threshold))
-                    sl_threshold = max(-0.0150, min(-0.0065, sl_threshold))
+                    tp_threshold = max(0.0120, min(0.0250, tp_threshold))
+                    sl_threshold = max(-0.0075, min(-0.0055, sl_threshold))
 
                 from src.quant.backtester import REVERT_MIN_ROI
                 is_trend = "TRENDING" in (regime or "").upper()
@@ -153,11 +153,11 @@ class SettlementAgent:
                 # HARD STOP LOSS: Exit immediately if loss exceeds threshold
                 hard_stop = roi <= sl_threshold
                 
-                # DYNAMIC STOP: Tighten in unfavorable regime
+                # DYNAMIC STOP: Tighten in unfavorable regime or when loss hits -0.65%
                 dynamic_sl = False
                 if is_scalp:
-                    if roi < -0.0085:
-                        dynamic_sl = roi <= max(sl_threshold, -0.0085)
+                    if roi <= -0.0065:
+                        dynamic_sl = True
                 else:
                     if roi < -0.02:
                         dynamic_sl = roi <= max(sl_threshold, -0.02)
@@ -180,15 +180,16 @@ class SettlementAgent:
 
                 if is_scalp:
                     # SCALP TRAILING & BREAKEVEN RULES (Zero-Mistake Profit Protection)
-                    # Breakeven stop: once peak reached +0.60%, exit if it drops below +0.20%
-                    # Guarantees trade clears Hyperliquid fees (~0.08% roundtrip) and locks positive net outcome.
-                    be_trigger = scalp_cfg.get("breakeven_trigger_pct", 0.0060)
-                    be_lock = scalp_cfg.get("breakeven_lock_pct", 0.0020)
+                    # Breakeven stop: once peak reached +0.50%, exit if it drops below +0.15%
+                    # Guarantees trade clears Hyperliquid fees (~0.07% roundtrip) and locks positive net outcome.
+                    be_trigger = scalp_cfg.get("breakeven_trigger_pct", 0.0050)
+                    be_lock = scalp_cfg.get("breakeven_lock_pct", 0.0015)
                     breakeven_stop = (peak_roi >= be_trigger) and (roi < be_lock) and (roi > -0.003)
 
-                    # Trailing exit: once ROI >= +1.00%, exit if it drops 15% from peak
-                    trail_trigger = scalp_cfg.get("trailing_trigger_pct", 0.0100)
+                    # Trailing exit: once ROI >= +0.80%, exit if it drops 15% from peak
+                    trail_trigger = scalp_cfg.get("trailing_trigger_pct", 0.0080)
                     trailing_exit = (roi >= trail_trigger) and (peak_roi >= trail_trigger) and (roi < peak_roi * 0.85)
+
 
                     # High profit lock: if ROI >= 1.5% and drops 12% from peak
                     high_profit_exit = (roi >= 0.015) and (peak_roi >= 0.015) and (roi < peak_roi * 0.88)
@@ -330,7 +331,19 @@ class SettlementAgent:
                         self.redis.set(session_key, new_session_pnl, ex=172800)  # 48h TTL
                         log.info(f"[SESSION_GUARD] Realized PnL updated: ${new_session_pnl:.2f} (limit: -$5.00)")
                         
-                        # Record in learning module for future reference
+                        # Record in learning module for future reference.
+                        # Prefer entry-time composite/regime stashed by the supervisor;
+                        # exit-time recomputation is contaminated (reversion exits fire
+                        # when comp<=0.45, which inverted prior calibration analyses).
+                        entry_regime, entry_comp = regime, comp
+                        try:
+                            _raw_ctx = self.redis.get(f"entry_ctx:{exchange_id}:{symbol}")
+                            if _raw_ctx:
+                                _ctx = json.loads(_raw_ctx)
+                                entry_comp = float(_ctx.get("composite", comp))
+                                entry_regime = _ctx.get("regime") or regime
+                        except Exception:
+                            pass
                         learning_module.record_trade_outcome(
                             symbol=symbol,
                             exchange=exchange_id,
@@ -338,8 +351,8 @@ class SettlementAgent:
                             entry_price=avg_price,
                             exit_price=current_price,
                             roi=roi,
-                            regime=regime,
-                            comp_score=comp,
+                            regime=entry_regime,
+                            comp_score=entry_comp,
                             holding_time_hours=held_hours
                         )
                         

@@ -19,6 +19,7 @@ temperatures (see server warning), so we always use `probabilities[choice]`
 for choice strength and `noul` for coherence -- never the bare `confidence`.
 """
 import json
+import math
 import os
 import queue
 import threading

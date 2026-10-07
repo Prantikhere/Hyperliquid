@@ -3,14 +3,14 @@
   "scalp_mode": true,
   "scalp_config": {
     "enabled": true,
-    "tp_target_pct": 0.018,
-    "sl_target_pct": -0.0085,
-    "breakeven_trigger_pct": 0.006,
-    "breakeven_lock_pct": 0.002,
-    "trailing_trigger_pct": 0.01,
+    "tp_target_pct": 0.016,
+    "sl_target_pct": -0.0065,
+    "breakeven_trigger_pct": 0.005,
+    "breakeven_lock_pct": 0.0015,
+    "trailing_trigger_pct": 0.008,
     "trailing_drop_ratio": 0.15,
     "max_hold_hours": 1.5,
-    "min_confidence": 0.7
+    "min_confidence": 0.62
   },
   "buy_threshold": 0.6,
   "sell_threshold": 0.4,

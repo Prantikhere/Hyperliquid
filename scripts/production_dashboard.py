@@ -6,10 +6,20 @@ Usage: python3 scripts/production_dashboard.py
 Displays real-time system status, P&L, drawdown, and alerts.
 """
 
+import os
+import sys
+
+# Auto-reexec with project venv python if invoked via system python
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_VENV_DIR = os.path.join(_PROJECT_ROOT, "venv")
+_VENV_PYTHON = os.path.join(_VENV_DIR, "bin", "python3")
+if os.path.exists(_VENV_PYTHON) and sys.prefix != _VENV_DIR:
+    os.execv(_VENV_PYTHON, [_VENV_PYTHON] + sys.argv)
+
+
 import json
 import redis
 import time
-import os
 from datetime import datetime
 
 def main():

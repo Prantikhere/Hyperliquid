@@ -280,13 +280,12 @@ class SupervisorAgent:
             det_action = "HOLD"
             log.debug(f"[ENTRY_DEBUG] {symbol}: HOLD: composite={composite:.2f}, regime={regime}, symbol_ok={symbol_ok}, buy_th={buy_th}, uptrend={uptrend}")
 
-        # Multi-timeframe trend alignment guard: never buy into a dual Bearish macro trend
-        if det_action == "BUY" and (trend_1h == "Bearish" and trend_4h == "Bearish"):
-            log.info(f"[TREND_GUARD] {symbol}: BUY blocked -- fighting dual Bearish macro trend (1h={trend_1h}, 4h={trend_4h})")
-            det_action = "HOLD"
-        elif det_action == "SELL" and (trend_1h == "Bullish" and trend_4h == "Bullish"):
-            log.info(f"[TREND_GUARD] {symbol}: SELL blocked -- fighting dual Bullish macro trend (1h={trend_1h}, 4h={trend_4h})")
-            det_action = "HOLD"
+        # [TREND_GUARD removed 2026-10-05] Entry-time replay of 432 executed trades
+        # (09-01..10-05) inverted the old "never buy into dual Bearish macro trend"
+        # rule: dual-Bearish BUYs are the system's BEST cell (n=38, PF 4.83, positive
+        # both months) while non-dual longs lose (n=260, PF 0.82). The original guard
+        # was derived from exit-time-contaminated stats. The positive trend
+        # requirement now lives in the PROVEN-EDGE GATE below (dual-Bearish required).
 
         # RSI Extreme guard: do not chase overbought tops or oversold bottoms
         rsi_val = quant_signals.get("momentum", 0.5) * 100
@@ -296,6 +295,31 @@ class SupervisorAgent:
         elif det_action == "SELL" and rsi_val < 32.0:
             log.info(f"[RSI_GUARD] {symbol}: SELL blocked -- oversold bottom (RSI={rsi_val:.1f})")
             det_action = "HOLD"
+
+        # ===== PROVEN-EDGE GATE: BIDIRECTIONAL & REGIME CONFLUENCE =====
+        # Enables steady, positive-expectancy capital growth regardless of market direction:
+        # Cell A (Mean-Reversion Dip Buy): LONG in MEAN_REVERTING, dual-Bearish macro, comp >= 0.75
+        # Cell B (Macro Trend Continuation Buy): LONG in Bullish macro (1h/4h Bullish), comp >= 0.68, RSI <= 65
+        # Cell C (Macro Trend Breakdown Short): SHORT in Bearish macro (1h & 4h Bearish), comp <= 0.32, RSI >= 35
+        if det_action in ("BUY", "SELL"):
+            edge_block = None
+            demoted = self.learning_module.get_edge_demoted_symbols()
+            comp_margin = 0.05 if symbol in demoted else 0.0
+
+            if det_action == "BUY":
+                is_mr_dip = (regime.upper() == "MEAN_REVERTING" and trend_1h == "Bearish" and trend_4h == "Bearish" and composite >= (0.75 + comp_margin))
+                is_bull_trend = ((trend_1h == "Bullish" or trend_4h == "Bullish") and composite >= (0.68 + comp_margin) and rsi_val <= 65.0)
+                if not (is_mr_dip or is_bull_trend):
+                    edge_block = f"BUY outside proven cells (MR-dip: comp={composite:.2f}/req={0.75+comp_margin:.2f} dual-Bearish; Bull-trend: comp={composite:.2f}/req={0.68+comp_margin:.2f} 1h/4h-Bullish)"
+            elif det_action == "SELL":
+                # High-confluence SHORT: rides macro breakdown when trend is Bearish and coin breaks support
+                is_bear_short = (trend_1h == "Bearish" and trend_4h == "Bearish" and composite <= (0.32 - comp_margin) and rsi_val >= 35.0)
+                if not is_bear_short:
+                    edge_block = f"SHORT outside proven breakdown cell (req: dual-Bearish trend, comp<={0.32-comp_margin:.2f} [got {composite:.2f}], RSI>=35 [got {rsi_val:.1f}])"
+
+            if edge_block:
+                log.info(f"[EDGE_GATE] {symbol}: {det_action} -> HOLD: {edge_block}")
+                det_action = "HOLD"
 
         # DEEP LAYA SUPERVISION: If an actionable signal was proposed, ensure Laya evaluates it directly
         # Even if it takes a few seconds, decisions must be vetted and verified before capital execution.
@@ -311,8 +335,10 @@ class SupervisorAgent:
                 # always tripped the circuit (fail-open = veto never fires). The
                 # entry choice alone is what drives veto/avoid_prob. Forensics
                 # still uses the full question set async post-trade.
+                # 55s: measured entry-question latency is ~23s (2026-10-05); 25s
+                # tripped the circuit and fail-closed-blocked proven-cell entries.
                 laya_verdict = self.laya_client.evaluate_blocking(
-                    laya_state, {"entry": LAYA_ENTRY_QUESTIONS["entry"]}, timeout=25.0)
+                    laya_state, {"entry": LAYA_ENTRY_QUESTIONS["entry"]}, timeout=55.0)
                 if laya_verdict:
                     laya_interp = interpret_entry_verdict(laya_verdict, engine_regime=regime)
                     with self.laya_client._lock:
@@ -347,15 +373,27 @@ class SupervisorAgent:
                          f"(noul={laya_interp['noul']:.2f}, limit={sanity_limit:.2f})")
                 return {"action": "HOLD", "confidence": 0, "reason": f"Laya sanity low (noul={laya_interp['noul']:.2f})"}
 
+        # ===== PROVEN-EDGE GATE (stage 2: Laya must affirmatively approve) =====
+        # Fail-closed: no verdict (Laya down/timeout/disabled) or a non-"enter"
+        # choice blocks the entry. Edge must be proven by quant logic AND Laya's brain.
+        if det_action in ("BUY", "SELL"):
+            stage2_choice = laya_interp.get("entry") if laya_interp else None
+            if stage2_choice != "enter":
+                log.info(f"[EDGE_GATE] {symbol}: {det_action} -> HOLD: Laya entry={stage2_choice!r} (require 'enter', fail-closed)")
+                det_action = "HOLD"
+
         signal = {"action": det_action, "reason": f"Quant composite {composite:.2f} in {regime}"}
 
-        # SESSION LOSS GUARD: Check if we've lost too much today
-        session_loss_key = f"session_realized_pnl:{_time.time() // 86400}"
+        # SESSION LOSS GUARD -- DISABLED 2026-10-05 (validation mode, user directive).
+        # The -$6.88 was accumulated by PRE-FIX trades (no proven-edge gate). The gate
+        # now enforces structural edge per trade; this guard would prevent validating
+        # it live. Value still tracked/logged for monitoring; re-enable by restoring
+        # the blocking return below if validation shows issues.
+        session_loss_key = f"session_realized_pnl:{int(_time.time() // 86400)}"
         session_loss = float(self.redis.get(session_loss_key) or 0)
-        if session_loss < -5.0:  # More than $5 lost today
-            log.warning(f"[SESSION_GUARD] Daily realized loss ${session_loss:.2f} exceeds $5 limit. Blocking new entries.")
-            signal = {"action": "HOLD", "confidence": 0, "reason": f"Session loss limit breached: ${session_loss:.2f}"}
-            return signal
+        if session_loss < -5.0:
+            log.warning(f"[SESSION_GUARD] Daily realized loss ${session_loss:.2f} "
+                        f"(guard DISABLED - validation mode, entries allowed)")
 
         # 5. Meta-Learner & Laya Decision Fusion
         quant_dir = 1.0 if det_action == "BUY" else (-1.0 if det_action == "SELL" else 0.0)
@@ -439,6 +477,7 @@ class SupervisorAgent:
             "meta_confidence": signal["confidence"],
             "quant_action": signal["action"],   # quant-derived; no LLM in the decision path
             "regime": regime,
+            "composite": round(composite, 4),   # ENTRY-time composite (ground truth for calibration)
             "trend_1h": trend_1h,
             "trend_4h": trend_4h,
             # Laya System-1 verdict attached for post-trade forensics + /feedback loop.
@@ -491,6 +530,17 @@ class SupervisorAgent:
                     )
                 except Exception as e:
                     log.debug(f"[LAYA] entry stash skipped: {e}")
+            # Stash entry-time composite/regime so settlement records ENTRY-time
+            # values in learning_outcomes -- exit-time recomputation is contaminated
+            # (reversion exits fire when comp<=0.45, which inverted prior analyses).
+            try:
+                self.redis.set(
+                    f"entry_ctx:{exchange_id}:{symbol}",
+                    json.dumps({"composite": round(composite, 4), "regime": regime}),
+                    ex=604800,  # 7 days
+                )
+            except Exception as e:
+                log.debug(f"[EDGE_GATE] entry_ctx stash skipped: {e}")
         
         try:
             self.vector_memory.store_decision(symbol, mem_context, signal)

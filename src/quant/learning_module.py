@@ -35,13 +35,16 @@ class LearningModule:
                             sym = trade.get('symbol', '?')
                             roi = trade.get('outcome_roi', 0)
                             if sym not in self.symbol_stats:
-                                self.symbol_stats[sym] = {'wins': 0, 'losses': 0, 'total': 0, 'total_roi': 0}
+                                self.symbol_stats[sym] = {'wins': 0, 'losses': 0, 'total': 0, 'total_roi': 0,
+                                                          'gross_win': 0.0, 'gross_loss': 0.0}
                             self.symbol_stats[sym]['total'] += 1
                             self.symbol_stats[sym]['total_roi'] += roi
                             if roi > 0:
                                 self.symbol_stats[sym]['wins'] += 1
+                                self.symbol_stats[sym]['gross_win'] += roi
                             else:
                                 self.symbol_stats[sym]['losses'] += 1
+                                self.symbol_stats[sym]['gross_loss'] += -roi
                             # Ban symbols with catastrophic losses
                             if roi < -0.10:  # >10% loss
                                 self.banned_symbols.add(sym)
@@ -91,7 +94,20 @@ class LearningModule:
             "is_failure": roi < -0.03,  # >3% loss = failure
             "failure_reason": self._identify_failure_reason(roi, regime, comp_score, holding_time_hours)
         }
-        
+
+        # Keep in-process per-symbol stats fresh (EDGE_GATE demotion reads these;
+        # the ledger loader at init alone would never see this process's trades).
+        st = self.symbol_stats.setdefault(symbol, {'wins': 0, 'losses': 0, 'total': 0, 'total_roi': 0,
+                                                   'gross_win': 0.0, 'gross_loss': 0.0})
+        st['total'] += 1
+        st['total_roi'] += roi
+        if roi > 0:
+            st['wins'] += 1
+            st['gross_win'] += roi
+        else:
+            st['losses'] += 1
+            st['gross_loss'] += -roi
+
         # Append to learning file
         try:
             with open(self.learning_file, 'a') as f:
@@ -135,7 +151,20 @@ class LearningModule:
             return 0.85  # 15% reduction
         
         return 1.0  # No adjustment
-    
+
+    def get_edge_demoted_symbols(self, min_trades=12, pf_floor=0.6):
+        """Symbols whose proven profit factor is below pf_floor. EDGE_GATE then
+        raises their composite floor from 0.75 to 0.80 -- a higher evidence bar,
+        not a ban (pair blacklisting is prohibited by user constraint)."""
+        demoted = set()
+        for sym, st in self.symbol_stats.items():
+            if st.get('total', 0) < min_trades:
+                continue
+            gl = st.get('gross_loss', 0.0)
+            if gl > 0 and (st.get('gross_win', 0.0) / gl) < pf_floor:
+                demoted.add(sym)
+        return demoted
+
     def get_adjusted_parameters(self, symbol, exchange, regime):
         """Get adjusted parameters based on past learnings."""
         adjustments = {

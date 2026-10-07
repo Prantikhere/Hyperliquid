@@ -6,11 +6,19 @@ Usage:
 """
 import os
 import sys
+
+# Auto-reexec with project venv python if invoked via system python
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_VENV_DIR = os.path.join(_PROJECT_ROOT, "venv")
+_VENV_PYTHON = os.path.join(_VENV_DIR, "bin", "python3")
+if os.path.exists(_VENV_PYTHON) and sys.prefix != _VENV_DIR:
+    os.execv(_VENV_PYTHON, [_VENV_PYTHON] + sys.argv)
+
+
 import time
 import argparse
 from datetime import datetime
 
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 

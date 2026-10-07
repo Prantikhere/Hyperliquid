@@ -68,9 +68,9 @@ class MultiExchangeClient:
                 best_ask = float(asks[0]["px"])
                 if best_bid > 0:
                     spread_pct = (best_ask - best_bid) / best_bid
-                    if spread_pct > 0.0020:  # 0.20% max allowed spread for entry
-                        log.warning(f"[SPREAD_GUARD] {coin} entry blocked: spread too wide ({spread_pct*100:.2f}% > 0.20%)")
-                        return {"error": f"Spread too wide: {spread_pct*100:.2f}% > 0.20%"}
+                    if spread_pct > 0.0018:  # 0.18% max allowed spread for entry
+                        log.warning(f"[SPREAD_GUARD] {coin} entry blocked: spread too wide ({spread_pct*100:.2f}% > 0.18%)")
+                        return {"error": f"Spread too wide: {spread_pct*100:.2f}% > 0.18%"}
 
             oracle_px = self.hl_sdk._get_oracle_px(coin)
             if oracle_px <= 0:
