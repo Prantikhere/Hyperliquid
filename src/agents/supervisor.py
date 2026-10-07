@@ -1,5 +1,6 @@
 import asyncio
 import os
+import time
 import fcntl
 import sys
 import redis
@@ -172,18 +173,37 @@ class SupervisorAgent:
         except Exception as e:
             log.debug(f"[SHADOW-ANOMALY] skipped: {e}")
         
-        # Multi-timeframe trend calculation
+        # Multi-timeframe trend calculation (Fast SDK + Redis cached, fallback to DB)
         trend_1h, trend_4h = "Neutral", "Neutral"
         try:
-            p_1h = self.db.execute_query("SELECT price FROM external_prices WHERE symbol LIKE %s AND time < NOW() - INTERVAL '1 hour' ORDER BY time DESC LIMIT 1", (f"%{symbol}%",))
-            if p_1h:
-                change = (float(price) - p_1h[0][0]) / p_1h[0][0]
-                trend_1h = "Bullish" if change > 0.005 else "Bearish" if change < -0.005 else "Neutral"
-                
-            p_4h = self.db.execute_query("SELECT price FROM external_prices WHERE symbol LIKE %s AND time < NOW() - INTERVAL '4 hours' ORDER BY time DESC LIMIT 1", (f"%{symbol}%",))
-            if p_4h:
-                change = (float(price) - p_4h[0][0]) / p_4h[0][0]
-                trend_4h = "Bullish" if change > 0.015 else "Bearish" if change < -0.015 else "Neutral"
+            cached_trend = self.redis.get(f"trend:{exchange_id}:{symbol}")
+            if cached_trend:
+                t_data = json.loads(cached_trend)
+                trend_1h = t_data.get("trend_1h", "Neutral")
+                trend_4h = t_data.get("trend_4h", "Neutral")
+            elif exchange_id == "hyperliquid" and hasattr(self.execution_agent.multi_client, "hl_sdk") and self.execution_agent.multi_client.hl_sdk:
+                coin = symbol.split("/")[0]
+                now_ms = int(time.time() * 1000)
+                candles = self.execution_agent.multi_client.hl_sdk.info.candles_snapshot(coin, "1h", now_ms - 5 * 3600 * 1000, now_ms)
+                if candles and len(candles) >= 2:
+                    p_curr = float(candles[-1]["c"])
+                    p_1h_ago = float(candles[-2]["c"])
+                    p_4h_ago = float(candles[0]["c"])
+                    chg_1h = (p_curr - p_1h_ago) / p_1h_ago if p_1h_ago > 0 else 0.0
+                    chg_4h = (p_curr - p_4h_ago) / p_4h_ago if p_4h_ago > 0 else 0.0
+                    trend_1h = "Bullish" if chg_1h > 0.004 else "Bearish" if chg_1h < -0.004 else "Neutral"
+                    trend_4h = "Bullish" if chg_4h > 0.010 else "Bearish" if chg_4h < -0.010 else "Neutral"
+                    self.redis.set(f"trend:{exchange_id}:{symbol}", json.dumps({"trend_1h": trend_1h, "trend_4h": trend_4h}), ex=60)
+            else:
+                p_1h = self.db.execute_query("SELECT price FROM external_prices WHERE symbol LIKE %s AND time < NOW() - INTERVAL '1 hour' ORDER BY time DESC LIMIT 1", (f"%{symbol}%",))
+                if p_1h:
+                    change = (float(price) - p_1h[0][0]) / p_1h[0][0]
+                    trend_1h = "Bullish" if change > 0.005 else "Bearish" if change < -0.005 else "Neutral"
+                    
+                p_4h = self.db.execute_query("SELECT price FROM external_prices WHERE symbol LIKE %s AND time < NOW() - INTERVAL '4 hours' ORDER BY time DESC LIMIT 1", (f"%{symbol}%",))
+                if p_4h:
+                    change = (float(price) - p_4h[0][0]) / p_4h[0][0]
+                    trend_4h = "Bullish" if change > 0.015 else "Bearish" if change < -0.015 else "Neutral"
         except Exception as e:
             log.warning(f"Trend Calc Error: {e}")
         
@@ -296,26 +316,30 @@ class SupervisorAgent:
             log.info(f"[RSI_GUARD] {symbol}: SELL blocked -- oversold bottom (RSI={rsi_val:.1f})")
             det_action = "HOLD"
 
-        # ===== PROVEN-EDGE GATE: BIDIRECTIONAL & REGIME CONFLUENCE =====
+        # ===== PROVEN-EDGE GATE: BIDIRECTIONAL & MULTI-REGIME CONFLUENCE =====
         # Enables steady, positive-expectancy capital growth regardless of market direction:
         # Cell A (Mean-Reversion Dip Buy): LONG in MEAN_REVERTING, dual-Bearish macro, comp >= 0.75
         # Cell B (Macro Trend Continuation Buy): LONG in Bullish macro (1h/4h Bullish), comp >= 0.68, RSI <= 65
-        # Cell C (Macro Trend Breakdown Short): SHORT in Bearish macro (1h & 4h Bearish), comp <= 0.32, RSI >= 35
+        # Cell C (Range-Bound / Neutral Chop Dip Buy): LONG in Neutral/Mean-Reverting regime, comp >= 0.72, RSI <= 65
+        # Cell D (Macro Trend Breakdown Short): SHORT in Bearish macro (1h & 4h Bearish), comp <= 0.32, RSI >= 35
+        # Cell E (Range-Bound / Neutral Breakdown Short): SHORT in Neutral/Bearish macro, comp <= 0.28, RSI >= 35
         if det_action in ("BUY", "SELL"):
             edge_block = None
             demoted = self.learning_module.get_edge_demoted_symbols()
             comp_margin = 0.05 if symbol in demoted else 0.0
 
             if det_action == "BUY":
-                is_mr_dip = (regime.upper() == "MEAN_REVERTING" and trend_1h == "Bearish" and trend_4h == "Bearish" and composite >= (0.75 + comp_margin))
+                is_mr_dip = (regime.upper() in ("MEAN_REVERTING", "NEUTRAL") and trend_1h == "Bearish" and trend_4h == "Bearish" and composite >= (0.75 + comp_margin))
                 is_bull_trend = ((trend_1h == "Bullish" or trend_4h == "Bullish") and composite >= (0.68 + comp_margin) and rsi_val <= 65.0)
-                if not (is_mr_dip or is_bull_trend):
-                    edge_block = f"BUY outside proven cells (MR-dip: comp={composite:.2f}/req={0.75+comp_margin:.2f} dual-Bearish; Bull-trend: comp={composite:.2f}/req={0.68+comp_margin:.2f} 1h/4h-Bullish)"
+                is_range_dip = (regime.upper() in ("MEAN_REVERTING", "NEUTRAL") and composite >= (0.72 + comp_margin) and rsi_val <= 65.0)
+                if not (is_mr_dip or is_bull_trend or is_range_dip):
+                    edge_block = f"BUY outside proven cells (MR-dip: comp={composite:.2f}/req={0.75+comp_margin:.2f} dual-Bearish; Bull-trend: comp={composite:.2f}/req={0.68+comp_margin:.2f} 1h/4h-Bullish; Range: comp={composite:.2f}/req={0.72+comp_margin:.2f})"
             elif det_action == "SELL":
-                # High-confluence SHORT: rides macro breakdown when trend is Bearish and coin breaks support
+                # High-confluence SHORT: rides macro breakdown when trend is Bearish or breaks range support
                 is_bear_short = (trend_1h == "Bearish" and trend_4h == "Bearish" and composite <= (0.32 - comp_margin) and rsi_val >= 35.0)
-                if not is_bear_short:
-                    edge_block = f"SHORT outside proven breakdown cell (req: dual-Bearish trend, comp<={0.32-comp_margin:.2f} [got {composite:.2f}], RSI>=35 [got {rsi_val:.1f}])"
+                is_range_short = (regime.upper() in ("MEAN_REVERTING", "NEUTRAL") and composite <= (0.28 - comp_margin) and rsi_val >= 35.0)
+                if not (is_bear_short or is_range_short):
+                    edge_block = f"SHORT outside proven breakdown cell (req: dual-Bearish comp<={0.32-comp_margin:.2f} or Range comp<={0.28-comp_margin:.2f} [got {composite:.2f}], RSI>=35 [got {rsi_val:.1f}])"
 
             if edge_block:
                 log.info(f"[EDGE_GATE] {symbol}: {det_action} -> HOLD: {edge_block}")
