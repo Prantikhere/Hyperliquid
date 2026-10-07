@@ -8,7 +8,7 @@ class RiskAgent:
     def __init__(self, db=None):
         self.risk_manager = RiskManager(db=db)
         self.max_margin_usage_pct = 80.0  # Maximum margin usage percentage
-        self.max_concurrent_positions = 4  # Base maximum open positions across all symbols
+        self.max_concurrent_positions = 5  # Base maximum open positions across all symbols
         self.max_concurrent_positions_aggressive = 7  # Expanded when circumstances permit
         self.max_drawdown_pct = 15.0  # Maximum drawdown from peak before kill switch
         self.max_single_loss_pct = 3.0  # Maximum loss per trade (3%)
@@ -91,7 +91,7 @@ class RiskAgent:
                 pass  # Redis unavailable, skip check
 
             # CONCURRENT POSITION GUARD: Limit number of open positions to prevent overexposure
-            max_positions = 3 if free_margin < 75.0 else self.max_concurrent_positions
+            max_positions = 5 if circumstances_permit_margin else 4
             try:
                 import redis as _redis
                 _r = _redis.Redis(host=os.getenv('REDIS_HOST', 'localhost'), port=6379, decode_responses=True)
@@ -201,31 +201,32 @@ class RiskAgent:
             if position_usd <= 0:
                 return {"approved": False, "reason": f"Position size 0 (scale={scale_factor:.2f}, sortino={sortino_multiplier:.2f})"}
 
-            # Scalp Sizing (Sized for realistic PnL growth per user directive):
-            # Target notional $75 - $135 depending on confidence & regime (Margin $15 - $27 at 5x leverage)
-            # Max SL risk per trade: -$0.64 to -$1.15 (<0.6% of equity)
-            # TP reward per trade: +$1.35 to +$2.43
+            # Scalp Sizing (Sized for full capital deployment and growth per user directive):
+            # Target notional $90 - $160 depending on confidence & regime (Margin $18 - $32 at 5x leverage)
+            # Max SL risk per trade: -$0.58 to -$1.04 (<0.6% of equity)
+            # TP reward per trade: +$1.44 to +$2.56
             if circumstances_permit_margin and confidence >= 0.72:
-                target_notional = min(135.0, max(100.0, position_usd))
+                target_notional = min(160.0, max(120.0, position_usd))
             elif confidence >= 0.60:
-                target_notional = min(105.0, max(75.0, position_usd))
+                target_notional = min(130.0, max(95.0, position_usd))
             else:
-                target_notional = min(85.0, max(65.0, position_usd))
+                target_notional = min(100.0, max(75.0, position_usd))
 
             position_usd = target_notional
 
-            # Ensure margin required doesn't exceed 30% of free margin
+            # Ensure margin required doesn't exceed 40% of free margin
             req_margin = position_usd / max(1.0, leverage)
-            if req_margin > free_margin * 0.30:
-                position_usd = free_margin * 0.30 * leverage
-                log.info(f"[RISK_AGENT] Notional clamped to 30% free margin: ${position_usd:.2f}")
+            if req_margin > free_margin * 0.40:
+                position_usd = free_margin * 0.40 * leverage
+                log.info(f"[RISK_AGENT] Notional clamped to 40% free margin: ${position_usd:.2f}")
 
             # Enforce minimum notional for HL ($10 minimum, using $12 floor)
             if position_usd < 12.0:
                 position_usd = 12.0
 
-            # Absolute hard cap on notional: $135.0
-            position_usd = min(135.0, position_usd)
+            # Absolute hard cap on notional: $160.0
+            position_usd = min(160.0, position_usd)
+
 
 
             quantity = position_usd / current_price
