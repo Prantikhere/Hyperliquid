@@ -14,7 +14,7 @@ class RiskManager:
         self.kelly_win_loss_ratio = float(os.getenv("KELLY_WIN_LOSS_RATIO", 3.0))  # 3:1 for better growth
         self.kelly_fraction = float(os.getenv("KELLY_FRACTION", 0.20))  # 20% Kelly for faster growth
         # Hard cap: max position size in USD (scaled for maximum capital growth)
-        self.max_position_usd = float(os.getenv("MAX_POSITION_USD", 160.0))
+        self.max_position_usd = float(os.getenv("MAX_POSITION_USD", 165.0))
 
     def calculate_kelly_fraction(self, confidence):
         """Calculate Kelly-optimal fraction of bankroll to risk.

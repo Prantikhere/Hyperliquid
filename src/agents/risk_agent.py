@@ -201,17 +201,23 @@ class RiskAgent:
             if position_usd <= 0:
                 return {"approved": False, "reason": f"Position size 0 (scale={scale_factor:.2f}, sortino={sortino_multiplier:.2f})"}
 
-            # Scalp Sizing (Sized for full capital deployment and growth per user directive):
-            # Target notional $90 - $160 depending on confidence & regime (Margin $18 - $32 at 5x leverage)
-            # Max SL risk per trade: -$0.58 to -$1.04 (<0.6% of equity)
-            # TP reward per trade: +$1.44 to +$2.56
-            if circumstances_permit_margin and confidence >= 0.72:
-                target_notional = min(160.0, max(120.0, position_usd))
-            elif confidence >= 0.60:
-                target_notional = min(130.0, max(95.0, position_usd))
+            # Scalp Sizing (Sized for full capital deployment and meaningful compounding growth):
+            # Target notional $90 - $165 depending on free margin & confidence
+            # Each +2.4% TP win yields +$3.00 to +$3.96 (ROE ~+12% to +15%)
+            # Max SL risk clamped strictly at -0.60% (-$0.60 to -$0.99)
+            if free_margin >= 100.0:
+                base_target = 150.0
+            elif free_margin >= 50.0:
+                base_target = 125.0
             else:
-                target_notional = min(100.0, max(75.0, position_usd))
+                base_target = 95.0
 
+            if confidence >= 0.55:
+                base_target += 15.0
+            elif confidence < 0.48:
+                base_target -= 15.0
+
+            target_notional = max(75.0, min(165.0, base_target))
             position_usd = target_notional
 
             # Ensure margin required doesn't exceed 40% of free margin
@@ -224,8 +230,8 @@ class RiskAgent:
             if position_usd < 12.0:
                 position_usd = 12.0
 
-            # Absolute hard cap on notional: $160.0
-            position_usd = min(160.0, position_usd)
+            # Absolute hard cap on notional: $165.0
+            position_usd = min(165.0, position_usd)
 
 
 

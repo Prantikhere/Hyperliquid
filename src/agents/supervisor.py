@@ -329,17 +329,17 @@ class SupervisorAgent:
             comp_margin = 0.05 if symbol in demoted else 0.0
 
             if det_action == "BUY":
-                is_mr_dip = (regime.upper() in ("MEAN_REVERTING", "NEUTRAL") and trend_1h == "Bearish" and trend_4h == "Bearish" and composite >= (0.75 + comp_margin))
-                is_bull_trend = ((trend_1h == "Bullish" or trend_4h == "Bullish") and composite >= (0.68 + comp_margin) and rsi_val <= 65.0)
-                is_range_dip = (regime.upper() in ("MEAN_REVERTING", "NEUTRAL") and composite >= (0.72 + comp_margin) and rsi_val <= 65.0)
+                is_mr_dip = (regime.upper() in ("MEAN_REVERTING", "NEUTRAL") and trend_1h == "Bearish" and trend_4h == "Bearish" and composite >= (0.74 + comp_margin))
+                is_bull_trend = ((trend_1h == "Bullish" or trend_4h == "Bullish") and composite >= (0.65 + comp_margin) and rsi_val <= 66.0)
+                is_range_dip = (regime.upper() in ("MEAN_REVERTING", "NEUTRAL") and composite >= (0.68 + comp_margin) and rsi_val <= 65.0)
                 if not (is_mr_dip or is_bull_trend or is_range_dip):
-                    edge_block = f"BUY outside proven cells (MR-dip: comp={composite:.2f}/req={0.75+comp_margin:.2f} dual-Bearish; Bull-trend: comp={composite:.2f}/req={0.68+comp_margin:.2f} 1h/4h-Bullish; Range: comp={composite:.2f}/req={0.72+comp_margin:.2f})"
+                    edge_block = f"BUY outside proven cells (MR-dip: comp={composite:.2f}/req={0.74+comp_margin:.2f} dual-Bearish; Bull-trend: comp={composite:.2f}/req={0.65+comp_margin:.2f} 1h/4h-Bullish; Range: comp={composite:.2f}/req={0.68+comp_margin:.2f})"
             elif det_action == "SELL":
-                # High-confluence SHORT: rides macro breakdown when trend is Bearish or breaks range support
-                is_bear_short = (trend_1h == "Bearish" and trend_4h == "Bearish" and composite <= (0.32 - comp_margin) and rsi_val >= 35.0)
-                is_range_short = (regime.upper() in ("MEAN_REVERTING", "NEUTRAL") and composite <= (0.28 - comp_margin) and rsi_val >= 35.0)
+                # High-confluence SHORT: rides macro breakdown or range support failure
+                is_bear_short = ((trend_1h == "Bearish" or trend_4h == "Bearish") and composite <= (0.34 - comp_margin) and rsi_val >= 35.0)
+                is_range_short = (regime.upper() in ("MEAN_REVERTING", "NEUTRAL") and composite <= (0.32 - comp_margin) and rsi_val >= 35.0)
                 if not (is_bear_short or is_range_short):
-                    edge_block = f"SHORT outside proven breakdown cell (req: dual-Bearish comp<={0.32-comp_margin:.2f} or Range comp<={0.28-comp_margin:.2f} [got {composite:.2f}], RSI>=35 [got {rsi_val:.1f}])"
+                    edge_block = f"SHORT outside proven breakdown cell (req: Bearish comp<={0.34-comp_margin:.2f} or Range comp<={0.32-comp_margin:.2f} [got {composite:.2f}], RSI>=35 [got {rsi_val:.1f}])"
 
             if edge_block:
                 log.info(f"[EDGE_GATE] {symbol}: {det_action} -> HOLD: {edge_block}")

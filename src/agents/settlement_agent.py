@@ -144,8 +144,8 @@ class SettlementAgent:
                 tp_threshold *= adjustments["take_profit_multiplier"]
                 sl_threshold *= adjustments["stop_loss_multiplier"]
                 if is_scalp:
-                    tp_threshold = max(0.0120, min(0.0250, tp_threshold))
-                    sl_threshold = max(-0.0075, min(-0.0055, sl_threshold))
+                    tp_threshold = max(0.0180, min(0.0350, tp_threshold))
+                    sl_threshold = max(-0.0070, min(-0.0055, sl_threshold))
 
                 from src.quant.backtester import REVERT_MIN_ROI
                 is_trend = "TRENDING" in (regime or "").upper()
@@ -179,30 +179,30 @@ class SettlementAgent:
                 held_hours = (time.time() - position_age) / 3600
 
                 if is_scalp:
-                    # SCALP TRAILING & BREAKEVEN RULES (Zero-Mistake Profit Protection)
-                    # Breakeven stop: once peak reached +0.50%, exit if it drops below +0.15%
-                    # Guarantees trade clears Hyperliquid fees (~0.07% roundtrip) and locks positive net outcome.
-                    be_trigger = scalp_cfg.get("breakeven_trigger_pct", 0.0050)
-                    be_lock = scalp_cfg.get("breakeven_lock_pct", 0.0015)
+                    # SCALP TRAILING & BREAKEVEN RULES (Growth-Oriented Profit Realization)
+                    # Breakeven stop: once peak reached +0.85%, protect gains if it pulls back below +0.35%
+                    # Ensures trade clears all fees with real profit, but avoids premature noise stopouts.
+                    be_trigger = scalp_cfg.get("breakeven_trigger_pct", 0.0085)
+                    be_lock = scalp_cfg.get("breakeven_lock_pct", 0.0035)
                     breakeven_stop = (peak_roi >= be_trigger) and (roi < be_lock) and (roi > -0.003)
 
-                    # Trailing exit: once ROI >= +0.80%, exit if it drops 15% from peak
-                    trail_trigger = scalp_cfg.get("trailing_trigger_pct", 0.0080)
-                    trailing_exit = (roi >= trail_trigger) and (peak_roi >= trail_trigger) and (roi < peak_roi * 0.85)
+                    # Trailing exit: once ROI >= +1.40%, trail by 15% from peak to let big moves run
+                    trail_trigger = scalp_cfg.get("trailing_trigger_pct", 0.0140)
+                    drop_ratio = scalp_cfg.get("trailing_drop_ratio", 0.15)
+                    trailing_exit = (roi >= trail_trigger) and (peak_roi >= trail_trigger) and (roi < peak_roi * (1.0 - drop_ratio))
 
+                    # High profit lock: if ROI >= 2.0% and drops 12% from peak
+                    high_profit_exit = (roi >= 0.020) and (peak_roi >= 0.020) and (roi < peak_roi * 0.88)
 
-                    # High profit lock: if ROI >= 1.5% and drops 12% from peak
-                    high_profit_exit = (roi >= 0.015) and (peak_roi >= 0.015) and (roi < peak_roi * 0.88)
+                    # Scalp stale exit: cut stagnant trades held > 2.5 hours with roi < +0.10%
+                    max_scalp_hours = scalp_cfg.get("max_hold_hours", 2.5)
+                    stale_position = (held_hours > max_scalp_hours) and (roi < 0.0010)
 
-                    # Scalp stale exit: cut stagnant trades held > 1.5 hours with roi < +0.05%
-                    max_scalp_hours = scalp_cfg.get("max_hold_hours", 1.5)
-                    stale_position = (held_hours > max_scalp_hours) and (roi < 0.0005)
-
-                    # Scalp reversion exit: book profit if cleared +0.60% and mean reversion occurs
-                    reverted = (not is_trend) and (roi >= 0.0060) and (held_hours > 0.15) and (
-                        (side == "LONG" and comp <= 0.45) or (side == "SHORT" and comp >= 0.55)
+                    # Scalp reversion exit: only after achieving substantial gain (>= +1.20%)
+                    reverted = (not is_trend) and (roi >= 0.0120) and (held_hours > 0.25) and (
+                        (side == "LONG" and comp <= 0.40) or (side == "SHORT" and comp >= 0.60)
                     )
-                    momentum_fading = (roi >= 0.0060) and (comp < 0.40 if side == "LONG" else comp > 0.60)
+                    momentum_fading = (roi >= 0.0120) and (comp < 0.35 if side == "LONG" else comp > 0.65)
                 else:
                     # Trailing exit: only if ROI > 2.5% and drops 20% from peak (locks in solid gains)
                     trailing_exit = (roi >= 0.025) and (peak_roi >= 0.025) and (roi < peak_roi * 0.80)
@@ -254,7 +254,7 @@ class SettlementAgent:
                     log.info(f"~~~ {'SCALP ' if is_scalp else ''}REVERSION EXIT for {symbol} on {exchange_id} (comp={comp:.2f}, ROI={roi*100:.2f}%). Booking reversion profit.")
                     decision = "SELL" if side == "LONG" else "BUY"
                     order_type = "MARKET"
-                elif regime_unfavorable and roi >= (0.0035 if is_scalp else 0.020):
+                elif regime_unfavorable and roi >= (0.0150 if is_scalp else 0.0250):
                     log.info(f"~~~ REGIME EXIT for {symbol} on {exchange_id} (regime={regime}). Booking profit before regime change impact.")
                     decision = "SELL" if side == "LONG" else "BUY"
                     order_type = "MARKET"
