@@ -166,6 +166,18 @@ class RiskAgent:
             except Exception as e:
                 log.debug(f"[RISK_DEBUG] HL position check failed: {e}")
 
+            # ANTI-WHIPSAW SAFETY: Reject symbols in post-stop-loss cooldown to prevent re-entering cascade
+            try:
+                import redis as _redis
+                _r = _redis.Redis(host=os.getenv('REDIS_HOST', 'localhost'), port=6379, decode_responses=True)
+                cooldown_key = f"stop_loss_cooldown:{exchange_id}:{symbol}"
+                if _r.get(cooldown_key):
+                    ttl_left = _r.ttl(cooldown_key)
+                    log.warning(f"[RISK_AGENT] {symbol} is in post-stop-loss cooldown ({ttl_left}s remaining). Trade rejected.")
+                    return {"approved": False, "reason": f"Post-stop-loss cooldown active ({ttl_left}s)"}
+            except Exception:
+                pass
+
             # Kelly-based position sizing
             position_usd = self.risk_manager.calculate_position_size(confidence, current_price, leverage=leverage)
             log.debug(f"[RISK_DEBUG] {symbol}: kelly_position=${position_usd:.2f}, confidence={confidence:.2f}, leverage={leverage:.1f}")
@@ -174,37 +186,23 @@ class RiskAgent:
             position_usd = position_usd * scale_factor
             log.debug(f"[RISK_DEBUG] {symbol}: after_scale=${position_usd:.2f}, scale_factor={scale_factor:.2f}")
 
-            # SESSION LOSS GUARD: Reduce position sizing when daily losses are high
+            # SESSION LOSS THROTTLING: Dynamically throttle sizing if daily drawdown accumulates
+            session_loss_multiplier = 1.0
             import time as _time
             import redis
             try:
                 _r = redis.Redis(host=os.getenv('REDIS_HOST', 'localhost'), port=6379, decode_responses=True)
                 session_key = f"session_realized_pnl:{int(_time.time() / 86400)}"
                 session_loss = float(_r.get(session_key) or 0)
-                if session_loss < -2.0:
-                    loss_multiplier = max(0.3, 1.0 + (session_loss / 10.0))  # Gradual reduction
-                    position_usd = position_usd * loss_multiplier
-                    log.warning(f"[SESSION_GUARD] Reducing position size by {100-loss_multiplier*100:.0f}% (daily PnL: ${session_loss:.2f})")
+                if session_loss < -1.50:
+                    session_loss_multiplier = max(0.60, 1.0 + (session_loss / 8.0))
+                    log.warning(f"[SESSION_GUARD] Daily PnL ${session_loss:.2f}. Throttling notional by {(1.0-session_loss_multiplier)*100:.0f}%.")
             except Exception:
-                pass  # Redis unavailable, skip session guard
+                pass
 
-            # Apply Sortino risk-adjusted multiplier (0.75 to 2.0)
-            # Floor at 0.75 to fit HL testnet margin limits while clearing $10 minimum
-            try:
-                sortino_val = float(sortino)
-            except (ValueError, TypeError):
-                sortino_val = 1.0
-            sortino_multiplier = float(np.clip(sortino_val, 0.75, 2.0))
-            position_usd = position_usd * sortino_multiplier
-            log.debug(f"[RISK_DEBUG] {symbol}: after_sortino=${position_usd:.2f}, sortino={sortino_val:.2f}, multiplier={sortino_multiplier:.2f}")
-
-            if position_usd <= 0:
-                return {"approved": False, "reason": f"Position size 0 (scale={scale_factor:.2f}, sortino={sortino_multiplier:.2f})"}
-
-            # Scalp Sizing (Sized for full capital deployment and meaningful compounding growth):
-            # Target notional $90 - $165 depending on free margin & confidence
-            # Each +2.4% TP win yields +$3.00 to +$3.96 (ROE ~+12% to +15%)
-            # Max SL risk clamped strictly at -0.60% (-$0.60 to -$0.99)
+            # Scalp Sizing (Sized for full capital deployment with active drawdown throttling):
+            # Normal: Target notional $90 - $165 depending on free margin & confidence
+            # In Drawdown: Automatically throttled down to $65 - $110 to stop account bleed
             if free_margin >= 100.0:
                 base_target = 150.0
             elif free_margin >= 50.0:
@@ -217,7 +215,7 @@ class RiskAgent:
             elif confidence < 0.48:
                 base_target -= 15.0
 
-            target_notional = max(75.0, min(165.0, base_target))
+            target_notional = max(60.0, min(165.0, base_target * session_loss_multiplier))
             position_usd = target_notional
 
             # Ensure margin required doesn't exceed 40% of free margin

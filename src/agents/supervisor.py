@@ -95,6 +95,30 @@ class SupervisorAgent:
         # Fallback to static whitelist from config
         return self.cfg.get("symbol_whitelist", [])
 
+    def _get_btc_trend(self, exchange_id: str = "hyperliquid") -> tuple:
+        """Fetch or compute BTC 1h/4h macro trend to detect waterfalls."""
+        try:
+            cached = self.redis.get(f"trend:{exchange_id}:BTC/USDT")
+            if cached:
+                d = json.loads(cached)
+                return d.get("trend_1h", "Neutral"), d.get("trend_4h", "Neutral")
+            if exchange_id == "hyperliquid" and hasattr(self.execution_agent.multi_client, "hl_sdk") and self.execution_agent.multi_client.hl_sdk:
+                now_ms = int(time.time() * 1000)
+                candles = self.execution_agent.multi_client.hl_sdk.info.candles_snapshot("BTC", "1h", now_ms - 5 * 3600 * 1000, now_ms)
+                if candles and len(candles) >= 2:
+                    p_curr = float(candles[-1]["c"])
+                    p_1h_ago = float(candles[-2]["c"])
+                    p_4h_ago = float(candles[0]["c"])
+                    chg_1h = (p_curr - p_1h_ago) / p_1h_ago if p_1h_ago > 0 else 0.0
+                    chg_4h = (p_curr - p_4h_ago) / p_4h_ago if p_4h_ago > 0 else 0.0
+                    t_1h = "Bullish" if chg_1h > 0.004 else "Bearish" if chg_1h < -0.004 else "Neutral"
+                    t_4h = "Bullish" if chg_4h > 0.010 else "Bearish" if chg_4h < -0.010 else "Neutral"
+                    self.redis.set(f"trend:{exchange_id}:BTC/USDT", json.dumps({"trend_1h": t_1h, "trend_4h": t_4h}), ex=180)
+                    return t_1h, t_4h
+        except Exception as e:
+            log.debug(f"[BTC_TREND] Check failed: {e}")
+        return "Neutral", "Neutral"
+
     async def run_cycle(self, symbol, exchange_id="bingx"):
         log.info(f"--- [{exchange_id.upper()}] Full-Potential Cycle: {symbol} ---")
         
@@ -267,6 +291,13 @@ class SupervisorAgent:
             log.warning(f"[DEAD_SYMBOL] {symbol} on {exchange_id} is blacklisted. Skipping.")
             return {"action": "HOLD", "confidence": 0, "reason": f"Dead symbol: {symbol}"}
 
+        # Anti-Whipsaw Cooldown: skip symbols stopped out recently (45m cooldown)
+        sl_cooldown = self.redis.get(f"stop_loss_cooldown:{exchange_id}:{symbol}")
+        if sl_cooldown:
+            ttl_left = self.redis.ttl(f"stop_loss_cooldown:{exchange_id}:{symbol}")
+            log.info(f"[ANTI_WHIPSAW] {symbol} in post-stop cooldown ({ttl_left}s). Skipping.")
+            return {"action": "HOLD", "confidence": 0, "reason": f"Post-stop cooldown ({ttl_left}s)"}
+
         # LAYA System-1 cross-check: cached verdict first (fast)
         laya_verdict = None
         laya_interp = None
@@ -315,6 +346,13 @@ class SupervisorAgent:
         elif det_action == "SELL" and rsi_val < 32.0:
             log.info(f"[RSI_GUARD] {symbol}: SELL blocked -- oversold bottom (RSI={rsi_val:.1f})")
             det_action = "HOLD"
+
+        # Macro Cascade Guard: Block buying altcoin dips during dual-Bearish BTC waterfalls
+        if det_action == "BUY" and symbol not in ("BTC/USDT", "PAXG/USDT"):
+            btc_1h, btc_4h = self._get_btc_trend(exchange_id)
+            if btc_1h == "Bearish" and btc_4h == "Bearish":
+                log.info(f"[MACRO_CASCADE_GUARD] {symbol}: BUY blocked -- BTC macro trend is dual-Bearish ({btc_1h}/{btc_4h})")
+                det_action = "HOLD"
 
         # ===== PROVEN-EDGE GATE: BIDIRECTIONAL & MULTI-REGIME CONFLUENCE =====
         # Enables steady, positive-expectancy capital growth regardless of market direction:
