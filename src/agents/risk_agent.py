@@ -91,7 +91,7 @@ class RiskAgent:
                 pass  # Redis unavailable, skip check
 
             # CONCURRENT POSITION GUARD: Limit number of open positions to prevent overexposure
-            max_positions = 5 if circumstances_permit_margin else 4
+            max_positions = 4 if circumstances_permit_margin else 3
             try:
                 import redis as _redis
                 _r = _redis.Redis(host=os.getenv('REDIS_HOST', 'localhost'), port=6379, decode_responses=True)
@@ -99,8 +99,21 @@ class RiskAgent:
                 open_count = int(_r.get(positions_key) or 0)
                 if open_count >= max_positions:
                     return {"approved": False, "reason": f"Too many open positions: {open_count} (max: {max_positions})"}
-            except Exception:
-                pass  # Redis unavailable, skip check
+
+                # DIRECTIONAL CORRELATION GUARD: Cap correlated crypto exposure to avoid basket dumps
+                if self.risk_manager and hasattr(self.risk_manager, "db") and self.risk_manager.db:
+                    db_positions = self.risk_manager.db.get_positions()
+                    crypto_same_side = sum(
+                        1 for (sym, eid), p in db_positions.items()
+                        if eid == exchange_id and abs(float(p.get("quantity", 0) or 0)) > 1e-6
+                        and "PAXG" not in sym
+                        and ((side.upper() == "BUY" and float(p.get("quantity", 0) or 0) > 0) or
+                             (side.upper() == "SELL" and float(p.get("quantity", 0) or 0) < 0))
+                    )
+                    if crypto_same_side >= 2:
+                        return {"approved": False, "reason": f"Directional correlation guard: already {crypto_same_side} crypto {side}s open"}
+            except Exception as e:
+                log.debug(f"[RISK_AGENT] Position count/correlation check error: {e}")
 
             # Regime-aware leverage and scale factor
             scale_factor = 1.0
