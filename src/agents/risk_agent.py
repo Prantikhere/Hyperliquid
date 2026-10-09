@@ -10,7 +10,7 @@ class RiskAgent:
         self.max_margin_usage_pct = 90.0  # Allow full, active deployment of working capital
         self.max_concurrent_positions = 50  # Concurrency unrestricted; governed by margin availability
         self.max_concurrent_positions_aggressive = 50
-        self.max_drawdown_pct = 15.0  # Maximum drawdown from peak before kill switch
+        self.max_drawdown_pct = 25.0  # Maximum drawdown from peak before kill switch (calibrated for high-vol recovery)
         self.max_single_loss_pct = 3.0  # Maximum loss per trade (3%)
         self.min_risk_reward = 1.5  # Minimum risk/reward ratio (1:1.5)
         self.max_positions_per_symbol = 1  # Maximum 1 position per symbol (no averaging)
