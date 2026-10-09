@@ -247,6 +247,7 @@ class RiskAgent:
 
 
             quantity = position_usd / current_price
+            sortino_multiplier = max(0.8, min(1.5, sortino or 1.0))
 
             log.info(f"[RISK_AGENT] Kelly sizing: {symbol} | conf={confidence:.2f} | regime={regime} "
                      f"scale={scale_factor:.2f} sortino={sortino_multiplier:.2f} lev={leverage}x "
