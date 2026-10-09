@@ -89,6 +89,11 @@ class SettlementAgent:
                     log.warning(f"[SETTLEMENT] {symbol} on {exchange_id} is in dead_symbols set. Skipping.")
                     continue
 
+                # PENDING EXIT CHECK: Prevent duplicate exit orders before on-chain reconciliation
+                if self.redis.get(f"pending_exit:{exchange_id}:{symbol}"):
+                    log.info(f"[SETTLEMENT] {symbol} on {exchange_id}: exit already submitted and pending on-chain reconciliation. Skipping.")
+                    continue
+
                 # Get real-time price
                 current_price_str = self.redis.get(f"price:{exchange_id}:{symbol}") or self.redis.get(f"price:{symbol}")
                 if not current_price_str:
@@ -318,6 +323,14 @@ class SettlementAgent:
                         log.info(f"SETTLEMENT: Logging outcome for {symbol} on {exchange_id} with ROI {roi*100:.2f}%")
                         self.db.log_trade_outcome(symbol, exchange_id, roi)
                         
+                        # Set pending exit lock to prevent duplicate exit orders before on-chain reconciliation
+                        self.redis.set(f"pending_exit:{exchange_id}:{symbol}", 1, ex=120)
+                        pos['quantity'] = 0
+                        try:
+                            self.db.update_position_quantity(symbol, exchange_id, 0.0)
+                        except Exception as ex_db:
+                            log.debug(f"DB position quantity update skipped: {ex_db}")
+
                         # Reset failed exit counter on success
                         failed_exit_key = f"failed_exits:{exchange_id}:{symbol}"
                         self.redis.delete(failed_exit_key)
@@ -435,9 +448,9 @@ class SettlementAgent:
                 else:
                     self.redis.delete(key)
 
-            # Drop position age / peak ROI for symbols no longer open
+            # Drop position age / peak ROI / pending exit for symbols no longer open
             # (so the next entry starts with a fresh hold clock and peak)
-            for pattern in (f"position_age:{exchange_id}:*", f"peak_roi:{exchange_id}:*"):
+            for pattern in (f"position_age:{exchange_id}:*", f"peak_roi:{exchange_id}:*", f"pending_exit:{exchange_id}:*"):
                 for key in self.redis.scan_iter(match=pattern):
                     symbol = key.rsplit(":", 1)[-1]
                     if symbol not in actual_symbols:

@@ -554,6 +554,15 @@ class SupervisorAgent:
             } if laya_interp else None),
         }
         
+        # ENTRY STAGGER CHECK: Prevent simultaneous basket entries into sudden market spikes/dips
+        if signal["action"] in ("BUY", "SELL"):
+            last_entry_ts = float(self.redis.get("last_global_entry_timestamp") or 0)
+            now_ts = time.time()
+            if now_ts - last_entry_ts < 120:
+                wait_sec = int(120 - (now_ts - last_entry_ts))
+                log.info(f"[ENTRY_STAGGER] Staggering entries to prevent basket correlation risk: {symbol} held ({wait_sec}s remaining)")
+                return {"action": "HOLD", "confidence": signal["confidence"], "reason": f"Entry staggered ({wait_sec}s remaining)"}
+
         # On-chain live double-entry prevention: verify against real Hyperliquid state
         if exchange_id == "hyperliquid" and signal["action"] in ("BUY", "SELL"):
             try:
@@ -573,6 +582,7 @@ class SupervisorAgent:
         # Record entry time for stale exit tracking
         if result.get("status") == "OK":
             import time as _entry_time
+            self.redis.set("last_global_entry_timestamp", _entry_time.time(), ex=300)
             self.redis.set(f"position_age:{exchange_id}:{symbol}", _entry_time.time(), ex=86400)
             # Track entry count for churn detection
             entry_count_key = f"entry_count:{exchange_id}:{symbol}:{int(_entry_time.time() / 86400)}"
