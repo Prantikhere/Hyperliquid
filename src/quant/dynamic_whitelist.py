@@ -40,8 +40,11 @@ class DynamicWhitelist:
     
     # Default static whitelist (fallback if dynamic scoring fails)
     STATIC_FALLBACK = [
-        "BTC/USDT", "ETH/USDT", "SOL/USDT", "ZRO/USDT",
-        "WLD/USDT", "ARB/USDT", "LIT/USDT", "OP/USDT"
+        "BTC/USDT", "ETH/USDT", "SOL/USDT", "DOGE/USDT", "AVAX/USDT", "BNB/USDT",
+        "SUI/USDT", "ADA/USDT", "ARB/USDT", "OP/USDT", "LIT/USDT", "WLD/USDT",
+        "XLM/USDT", "XMR/USDT", "ONDO/USDT", "TAO/USDT", "APT/USDT", "LINK/USDT",
+        "AAVE/USDT", "RENDER/USDT", "INJ/USDT", "TIA/USDT", "PENDLE/USDT", "PAXG/USDT",
+        "ALGO/USDT", "FTM/USDT", "SEI/USDT", "POL/USDT", "DOT/USDT", "LDO/USDT"
     ]
     
     # Minimum requirements for inclusion
