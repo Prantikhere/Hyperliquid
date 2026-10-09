@@ -78,7 +78,7 @@ class ParameterTuner:
         if mode in ("aggressive_scalp", "scalp"):
             self.BUY_THRESHOLD_RANGE = (0.52, 0.58)
             self.SELL_THRESHOLD_RANGE = (0.42, 0.48)
-            self.CONFIDENCE_RANGE = (0.52, 0.62)
+            self.CONFIDENCE_RANGE = (0.50, 0.55)
         elif mode == "aggressive":
             self.BUY_THRESHOLD_RANGE = (0.50, 0.58)
             self.SELL_THRESHOLD_RANGE = (0.42, 0.50)

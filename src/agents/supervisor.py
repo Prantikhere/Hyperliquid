@@ -466,6 +466,8 @@ class SupervisorAgent:
         if laya_interp and actionable and laya_interp.get("entry") == "enter":
             # Laya approved this setup: fuse Laya's calibrated win probability directly into confidence
             laya_win_prob = float(laya_interp.get("calibrated_win_prob", laya_interp.get("enter_prob", 0.60)))
+            if laya_interp.get("entry") == "enter":
+                laya_win_prob = max(laya_win_prob, float(laya_interp.get("enter_prob", 0.60)))
             fused_conf = 0.50 * laya_win_prob + 0.30 * composite + 0.20 * meta_confidence
             fused_conf = max(0.0, min(1.0, fused_conf * laya_interp.get("multiplier", 1.0)))
             signal["confidence"] = round(fused_conf, 4)
@@ -499,8 +501,8 @@ class SupervisorAgent:
         else:
             min_conf = float(self.cfg.get("min_confidence", 0.70))
         if is_scalp:
-            scalp_min_conf = float(self.cfg.get("scalp_config", {}).get("min_confidence", 0.70))
-            min_conf = max(min_conf, scalp_min_conf)
+            scalp_min_conf = float(self.cfg.get("scalp_config", {}).get("min_confidence", 0.54))
+            min_conf = min(0.55, max(0.50, scalp_min_conf))
         log.debug(f"[DECISION_DEBUG] {symbol}: det_action={det_action}, signal_action={signal.get('action')}, confidence={signal.get('confidence', 0):.2f}, composite={composite:.2f}, min_conf={min_conf:.2f}")
         if signal["action"] == "HOLD" or signal["confidence"] < min_conf:
             log.info(f"[{exchange_id}] Decision: HOLD {symbol} (conf={signal['confidence']:.2f}, req={min_conf:.2f}) | composite={composite:.2f} | regime={regime}")
