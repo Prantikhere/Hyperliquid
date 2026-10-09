@@ -7,14 +7,14 @@ from src.utils.logger import log
 class RiskAgent:
     def __init__(self, db=None):
         self.risk_manager = RiskManager(db=db)
-        self.max_margin_usage_pct = 80.0  # Maximum margin usage percentage
-        self.max_concurrent_positions = 5  # Base maximum open positions across all symbols
-        self.max_concurrent_positions_aggressive = 7  # Expanded when circumstances permit
+        self.max_margin_usage_pct = 90.0  # Allow full, active deployment of working capital
+        self.max_concurrent_positions = 50  # Concurrency unrestricted; governed by margin availability
+        self.max_concurrent_positions_aggressive = 50
         self.max_drawdown_pct = 15.0  # Maximum drawdown from peak before kill switch
         self.max_single_loss_pct = 3.0  # Maximum loss per trade (3%)
         self.min_risk_reward = 1.5  # Minimum risk/reward ratio (1:1.5)
         self.max_positions_per_symbol = 1  # Maximum 1 position per symbol (no averaging)
-        self.max_daily_trades_per_symbol = 6  # Maximum 6 trades per symbol per day
+        self.max_daily_trades_per_symbol = 8  # Maximum 8 trades per symbol per day
 
     def _check_margin_available(self):
         """Check if margin usage is below threshold. Returns (ok, free_margin, usage_pct, account_value)."""
@@ -90,30 +90,9 @@ class RiskAgent:
             except Exception:
                 pass  # Redis unavailable, skip check
 
-            # CONCURRENT POSITION GUARD: Limit number of open positions to prevent overexposure
-            max_positions = 4 if circumstances_permit_margin else 3
-            try:
-                import redis as _redis
-                _r = _redis.Redis(host=os.getenv('REDIS_HOST', 'localhost'), port=6379, decode_responses=True)
-                positions_key = "open_positions_count"
-                open_count = int(_r.get(positions_key) or 0)
-                if open_count >= max_positions:
-                    return {"approved": False, "reason": f"Too many open positions: {open_count} (max: {max_positions})"}
-
-                # DIRECTIONAL CORRELATION GUARD: Cap correlated crypto exposure to avoid basket dumps
-                if self.risk_manager and hasattr(self.risk_manager, "db") and self.risk_manager.db:
-                    db_positions = self.risk_manager.db.get_positions()
-                    crypto_same_side = sum(
-                        1 for (sym, eid), p in db_positions.items()
-                        if eid == exchange_id and abs(float(p.get("quantity", 0) or 0)) > 1e-6
-                        and "PAXG" not in sym
-                        and ((side.upper() == "BUY" and float(p.get("quantity", 0) or 0) > 0) or
-                             (side.upper() == "SELL" and float(p.get("quantity", 0) or 0) < 0))
-                    )
-                    if crypto_same_side >= 2:
-                        return {"approved": False, "reason": f"Directional correlation guard: already {crypto_same_side} crypto {side}s open"}
-            except Exception as e:
-                log.debug(f"[RISK_AGENT] Position count/correlation check error: {e}")
+            # UNRESTRICTED CONCURRENT POSITIONS:
+            # Concurrency is governed dynamically by margin solvency and available free capital rather than fixed position caps.
+            log.debug(f"[RISK_AGENT] Concurrency unrestricted. Free margin: ${free_margin:.2f}, usage: {usage_pct:.1f}%")
 
             # Regime-aware leverage and scale factor
             scale_factor = 1.0

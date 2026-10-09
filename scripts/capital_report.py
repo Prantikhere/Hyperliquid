@@ -106,7 +106,7 @@ def generate_report():
     unr_sign = "+" if unrealized_total >= 0 else ""
     report_lines.append(f" Total Unrealized P&L:      {unr_sign}${unrealized_total:,.2f}")
     report_lines.append("-" * 64)
-    report_lines.append(f" Open Positions Count:      {len(active_positions)} / 5 max")
+    report_lines.append(f" Open Positions Count:      {len(active_positions)} (Unrestricted)")
 
     if active_positions:
         report_lines.append("")
