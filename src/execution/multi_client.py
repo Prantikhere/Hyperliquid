@@ -62,15 +62,15 @@ class MultiExchangeClient:
             except Exception as e:
                 log.warning(f"[HL_L2] Failed to get snapshot for {coin}: {e}")
 
-            # Check spread on entries: prevent entering on wide/illiquid spreads
+            # Check spread on entries: prevent entering on illiquid spreads (>0.35%)
             if not reduce_only and bids and asks:
                 best_bid = float(bids[0]["px"])
                 best_ask = float(asks[0]["px"])
                 if best_bid > 0:
                     spread_pct = (best_ask - best_bid) / best_bid
-                    if spread_pct > 0.0018:  # 0.18% max allowed spread for entry
-                        log.warning(f"[SPREAD_GUARD] {coin} entry blocked: spread too wide ({spread_pct*100:.2f}% > 0.18%)")
-                        return {"error": f"Spread too wide: {spread_pct*100:.2f}% > 0.18%"}
+                    if spread_pct > 0.0035:  # 0.35% max allowed spread for entry during fast volume expansion
+                        log.warning(f"[SPREAD_GUARD] {coin} entry blocked: spread too wide ({spread_pct*100:.2f}% > 0.35%)")
+                        return {"error": f"Spread too wide: {spread_pct*100:.2f}% > 0.35%"}
 
             oracle_px = self.hl_sdk._get_oracle_px(coin)
             if oracle_px <= 0:

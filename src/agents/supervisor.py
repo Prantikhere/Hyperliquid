@@ -156,7 +156,10 @@ class SupervisorAgent:
         # Query returns newest-first (ORDER BY time DESC). Reverse to chronological order
         # (oldest -> newest) so every downstream indicator (z-score, RSI, MACD proxy,
         # Kaufman efficiency ratio) is computed on a correctly-ordered time series.
-        prices_raw = self.db.execute_query("SELECT price FROM external_prices WHERE symbol LIKE %s ORDER BY time DESC LIMIT 100", (f"%{symbol}%",))
+        # Prefer exact exchange-scoped symbol (e.g. 'hyperliquid:SOL/USDT') to prevent cross-exchange spread contamination.
+        prices_raw = self.db.execute_query("SELECT price FROM external_prices WHERE symbol = %s ORDER BY time DESC LIMIT 100", (f"{exchange_id}:{symbol}",))
+        if not prices_raw:
+            prices_raw = self.db.execute_query("SELECT price FROM external_prices WHERE symbol = %s ORDER BY time DESC LIMIT 100", (symbol,))
         price_list = [p[0] for p in prices_raw][::-1] if prices_raw else [float(price)]
         
         regime = self.regime_engine.detect_regime(price_list)
@@ -319,11 +322,11 @@ class SupervisorAgent:
             det_action = "BUY"
         elif composite < sell_th and not uptrend and symbol_ok:
             det_action = "SELL"   # opens a SHORT in a downtrend -> hedge engages when trend is down
-        elif composite >= 0.65 and symbol_ok and ("MEAN_REVERTING" in regime.upper() or "NEUTRAL" in regime.upper()):
+        elif composite >= 0.58 and symbol_ok and ("MEAN_REVERTING" in regime.upper() or "NEUTRAL" in regime.upper()):
             # Strong-signal override: composite is decisively bullish in MEAN_REVERTING/NEUTRAL regime.
             det_action = "BUY"
             log.debug(f"[ENTRY_DEBUG] {symbol}: Strong-signal BUY: composite={composite:.2f}, regime={regime}, symbol_ok={symbol_ok}")
-        elif composite <= 0.35 and symbol_ok and ("MEAN_REVERTING" in regime.upper() or "NEUTRAL" in regime.upper()):
+        elif composite <= 0.42 and symbol_ok and ("MEAN_REVERTING" in regime.upper() or "NEUTRAL" in regime.upper()):
             # Strong-signal override: composite is decisively bearish in MEAN_REVERTING/NEUTRAL regime.
             det_action = "SELL"
             log.debug(f"[ENTRY_DEBUG] {symbol}: Strong-signal SELL: composite={composite:.2f}, regime={regime}, symbol_ok={symbol_ok}")
@@ -340,10 +343,10 @@ class SupervisorAgent:
 
         # RSI Extreme guard: do not chase overbought tops or oversold bottoms
         rsi_val = quant_signals.get("momentum", 0.5) * 100
-        if det_action == "BUY" and rsi_val > 68.0:
+        if det_action == "BUY" and rsi_val > 72.0:
             log.info(f"[RSI_GUARD] {symbol}: BUY blocked -- overbought top (RSI={rsi_val:.1f})")
             det_action = "HOLD"
-        elif det_action == "SELL" and rsi_val < 32.0:
+        elif det_action == "SELL" and rsi_val < 28.0:
             log.info(f"[RSI_GUARD] {symbol}: SELL blocked -- oversold bottom (RSI={rsi_val:.1f})")
             det_action = "HOLD"
 
@@ -356,28 +359,28 @@ class SupervisorAgent:
 
         # ===== PROVEN-EDGE GATE: BIDIRECTIONAL & MULTI-REGIME CONFLUENCE =====
         # Enables steady, positive-expectancy capital growth regardless of market direction:
-        # Cell A (Mean-Reversion Dip Buy): LONG in MEAN_REVERTING, dual-Bearish macro, comp >= 0.75
-        # Cell B (Macro Trend Continuation Buy): LONG in Bullish macro (1h/4h Bullish), comp >= 0.68, RSI <= 65
-        # Cell C (Range-Bound / Neutral Chop Dip Buy): LONG in Neutral/Mean-Reverting regime, comp >= 0.72, RSI <= 65
-        # Cell D (Macro Trend Breakdown Short): SHORT in Bearish macro (1h & 4h Bearish), comp <= 0.32, RSI >= 35
-        # Cell E (Range-Bound / Neutral Breakdown Short): SHORT in Neutral/Bearish macro, comp <= 0.28, RSI >= 35
+        # Cell A (Mean-Reversion Dip Buy): LONG in MEAN_REVERTING, dual-Bearish macro, comp >= 0.65
+        # Cell B (Macro Trend Continuation Buy): LONG in Bullish macro (1h/4h Bullish), comp >= 0.57, RSI <= 68
+        # Cell C (Range-Bound / Neutral Chop Dip Buy): LONG in Neutral/Mean-Reverting regime, comp >= 0.58, RSI <= 68
+        # Cell D (Macro Trend Breakdown Short): SHORT in Bearish macro (1h & 4h Bearish), comp <= 0.43, RSI >= 32
+        # Cell E (Range-Bound / Neutral Breakdown Short): SHORT in Neutral/Bearish macro, comp <= 0.42, RSI >= 32
         if det_action in ("BUY", "SELL"):
             edge_block = None
             demoted = self.learning_module.get_edge_demoted_symbols()
-            comp_margin = 0.05 if symbol in demoted else 0.0
+            comp_margin = 0.03 if symbol in demoted else 0.0
 
             if det_action == "BUY":
-                is_mr_dip = (regime.upper() in ("MEAN_REVERTING", "NEUTRAL") and trend_1h == "Bearish" and trend_4h == "Bearish" and composite >= (0.74 + comp_margin))
-                is_bull_trend = ((trend_1h == "Bullish" or trend_4h == "Bullish") and composite >= (0.65 + comp_margin) and rsi_val <= 66.0)
-                is_range_dip = (regime.upper() in ("MEAN_REVERTING", "NEUTRAL") and composite >= (0.68 + comp_margin) and rsi_val <= 65.0)
+                is_mr_dip = (regime.upper() in ("MEAN_REVERTING", "NEUTRAL") and trend_1h == "Bearish" and trend_4h == "Bearish" and composite >= (0.64 + comp_margin))
+                is_bull_trend = ((trend_1h == "Bullish" or trend_4h == "Bullish") and composite >= (0.57 + comp_margin) and rsi_val <= 68.0)
+                is_range_dip = (regime.upper() in ("MEAN_REVERTING", "NEUTRAL") and composite >= (0.58 + comp_margin) and rsi_val <= 68.0)
                 if not (is_mr_dip or is_bull_trend or is_range_dip):
-                    edge_block = f"BUY outside proven cells (MR-dip: comp={composite:.2f}/req={0.74+comp_margin:.2f} dual-Bearish; Bull-trend: comp={composite:.2f}/req={0.65+comp_margin:.2f} 1h/4h-Bullish; Range: comp={composite:.2f}/req={0.68+comp_margin:.2f})"
+                    edge_block = f"BUY outside proven cells (MR-dip: comp={composite:.2f}/req={0.64+comp_margin:.2f} dual-Bearish; Bull-trend: comp={composite:.2f}/req={0.57+comp_margin:.2f} 1h/4h-Bullish; Range: comp={composite:.2f}/req={0.58+comp_margin:.2f})"
             elif det_action == "SELL":
                 # High-confluence SHORT: rides macro breakdown or range support failure
-                is_bear_short = ((trend_1h == "Bearish" or trend_4h == "Bearish") and composite <= (0.34 - comp_margin) and rsi_val >= 35.0)
-                is_range_short = (regime.upper() in ("MEAN_REVERTING", "NEUTRAL") and composite <= (0.32 - comp_margin) and rsi_val >= 35.0)
+                is_bear_short = ((trend_1h == "Bearish" or trend_4h == "Bearish") and composite <= (0.43 - comp_margin) and rsi_val >= 32.0)
+                is_range_short = (regime.upper() in ("MEAN_REVERTING", "NEUTRAL") and composite <= (0.42 - comp_margin) and rsi_val >= 32.0)
                 if not (is_bear_short or is_range_short):
-                    edge_block = f"SHORT outside proven breakdown cell (req: Bearish comp<={0.34-comp_margin:.2f} or Range comp<={0.32-comp_margin:.2f} [got {composite:.2f}], RSI>=35 [got {rsi_val:.1f}])"
+                    edge_block = f"SHORT outside proven breakdown cell (req: Bearish comp<={0.43-comp_margin:.2f} or Range comp<={0.42-comp_margin:.2f} [got {composite:.2f}], RSI>=32 [got {rsi_val:.1f}])"
 
             if edge_block:
                 log.info(f"[EDGE_GATE] {symbol}: {det_action} -> HOLD: {edge_block}")

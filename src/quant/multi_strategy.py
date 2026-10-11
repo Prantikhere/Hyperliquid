@@ -61,15 +61,16 @@ class StrategyEnsemble:
         
         # 1. Kalman-Enhanced Mean Reversion Signal
         # Measures deviation from the true Kalman-estimated state normalized by GARCH volatility
+        # Scaled by 3.5 to produce responsive signal range across [-2.5 sigma, +2.5 sigma]
         price_diff = df.iloc[-1] - curr_filt
         vol_normalizer = (curr_filt * garch_vol) if garch_vol > 0 else df.std()
         kalman_z = price_diff / vol_normalizer if vol_normalizer > 0 else 0
-        mr_signal = 1.0 / (1.0 + np.exp(kalman_z)) 
+        mr_signal = float(1.0 / (1.0 + np.exp(3.5 * kalman_z))) 
 
         # 2. Kalman Velocity Momentum Signal
-        # Velocity > 0 indicates upward momentum; normalized via sigmoid
+        # Velocity > 0 indicates upward momentum; normalized with responsive steepness
         vel_norm = curr_vel / (curr_filt * garch_vol + 1e-9)
-        kalman_vel_sig = float(1.0 / (1.0 + np.exp(-5.0 * vel_norm)))
+        kalman_vel_sig = float(1.0 / (1.0 + np.exp(-15.0 * vel_norm)))
 
         # 3. Standard Momentum Signal (RSI)
         change = df.diff()
@@ -77,7 +78,7 @@ class StrategyEnsemble:
         loss = (-change.where(change < 0, 0)).rolling(window=14).mean()
         rs = gain / loss
         rsi = 100 - (100 / (1 + rs)).iloc[-1]
-        mom_signal = rsi / 100.0 # High RSI = High Momentum (0 to 1)
+        mom_signal = float(rsi / 100.0) # High RSI = High Momentum (0 to 1)
 
         # 4. Order Flow Signal (Bid/Ask Imbalance)
         of_signal = 0.5
@@ -95,7 +96,7 @@ class StrategyEnsemble:
             ema_slow = filt_series.ewm(span=30, adjust=False).mean().iloc[-1]
             if ema_slow != 0:
                 rel = (ema_fast - ema_slow) / ema_slow
-                trend_signal = float(1.0 / (1.0 + np.exp(-50.0 * rel)))
+                trend_signal = float(1.0 / (1.0 + np.exp(-80.0 * rel)))
 
         # 6. RNN Signal (Neural network price prediction)
         rnn_signal = 0.5

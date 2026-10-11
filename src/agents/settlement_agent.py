@@ -101,7 +101,9 @@ class SettlementAgent:
                 
                 # Fetch recent prices for dynamic volatility
                 # Reverse newest-first query result to chronological order for correct volatility/regime math.
-                prices_raw = self.db.execute_query("SELECT price FROM external_prices WHERE symbol LIKE %s ORDER BY time DESC LIMIT 100", (f"%{symbol}%",))
+                prices_raw = self.db.execute_query("SELECT price FROM external_prices WHERE symbol = %s ORDER BY time DESC LIMIT 100", (f"{exchange_id}:{symbol}",))
+                if not prices_raw:
+                    prices_raw = self.db.execute_query("SELECT price FROM external_prices WHERE symbol = %s ORDER BY time DESC LIMIT 100", (symbol,))
                 price_list = [p[0] for p in prices_raw][::-1] if prices_raw else [current_price]
                 
                 # Dynamic Volatility TP/SL Scaling (protective backstops)
