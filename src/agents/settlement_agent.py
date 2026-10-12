@@ -182,15 +182,14 @@ class SettlementAgent:
                 held_hours = (time.time() - position_age) / 3600
 
                 if is_scalp:
-                    # SCALP TRAILING & BREAKEVEN RULES (Healthy Profit Realization Above Fees)
-                    # Breakeven stop: once peak reached +0.60%, protect gains if it pulls back below +0.25% (safely covers taker fees)
-                    be_trigger = scalp_cfg.get("breakeven_trigger_pct", 0.0060)
-                    be_lock = scalp_cfg.get("breakeven_lock_pct", 0.0025)
+                    # Breakeven stop: once peak reached +0.85%, protect gains if it pulls back below +0.35% (safely covers taker fees)
+                    be_trigger = scalp_cfg.get("breakeven_trigger_pct", 0.0085)
+                    be_lock = scalp_cfg.get("breakeven_lock_pct", 0.0035)
                     breakeven_stop = (peak_roi >= be_trigger) and (roi < be_lock) and (roi > 0.0010)
 
-                    # Trailing exit: once ROI >= +0.80%, trail by 18% from peak
-                    trail_trigger = scalp_cfg.get("trailing_trigger_pct", 0.0080)
-                    drop_ratio = scalp_cfg.get("trailing_drop_ratio", 0.18)
+                    # Trailing exit: once ROI >= +1.20%, trail by 20% from peak
+                    trail_trigger = scalp_cfg.get("trailing_trigger_pct", 0.0120)
+                    drop_ratio = scalp_cfg.get("trailing_drop_ratio", 0.20)
                     trailing_exit = (roi >= trail_trigger) and (peak_roi >= trail_trigger) and (roi < peak_roi * (1.0 - drop_ratio))
 
                     # High profit lock: if ROI >= 1.50% and drops 12% from peak

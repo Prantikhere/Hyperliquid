@@ -208,6 +208,11 @@ class RiskAgent:
                 base_target -= 15.0
 
             target_notional = max(60.0, min(165.0, base_target * session_loss_multiplier))
+            
+            # ASYMMETRIC SIZING CAP: Cap micro-caps/high-beta alts to prevent single wide stop from erasing 3-4 wins
+            if not is_major:
+                target_notional = min(target_notional, 45.0)
+
             position_usd = target_notional
 
             # Ensure margin required doesn't exceed 40% of free margin
@@ -220,8 +225,9 @@ class RiskAgent:
             if position_usd < 12.0:
                 position_usd = 12.0
 
-            # Absolute hard cap on notional: $165.0
-            position_usd = min(165.0, position_usd)
+            # Absolute hard cap on notional: $165.0 for majors, $45.0 for alts
+            max_cap = 165.0 if is_major else 45.0
+            position_usd = min(max_cap, position_usd)
 
 
 
