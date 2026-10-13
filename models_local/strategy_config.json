@@ -30,7 +30,7 @@
     "ADA/USDT",
     "ARB/USDT",
     "OP/USDT",
-    "LIT/USDT",
+    "ZRO/USDT",
     "WLD/USDT",
     "XLM/USDT",
     "XMR/USDT",
@@ -44,12 +44,12 @@
     "TIA/USDT",
     "PENDLE/USDT",
     "PAXG/USDT",
-    "ALGO/USDT",
-    "FTM/USDT",
-    "SEI/USDT",
+    "GRASS/USDT",
+    "ACE/USDT",
+    "STX/USDT",
     "POL/USDT",
     "DOT/USDT",
-    "LDO/USDT"
+    "AZTEC/USDT"
   ],
   "_backtest": {
     "buy_threshold": 0.55,

@@ -1,6 +1,6 @@
 {
-  "calibrated_at": "2026-10-12T00:02:05.093176+00:00",
-  "samples_trained": 1526,
+  "calibrated_at": "2026-10-13T00:01:21.335013+00:00",
+  "samples_trained": 2070,
   "temperature_by_options": {
     "choice:2": 4.0,
     "choice:3-5": 1.76,
@@ -9,8 +9,8 @@
     "noul:2": 3.8
   },
   "platt_scaling": {
-    "slope_a": 0.5036,
-    "intercept_b": -0.9699
+    "slope_a": 0.5131,
+    "intercept_b": -0.9607
   },
   "thresholds": {
     "veto_prob": 0.45,
@@ -18,12 +18,12 @@
     "min_conviction": 0.55
   },
   "metrics": {
-    "pre_brier": 0.3123,
-    "post_brier": 0.2476,
-    "pre_ece": 0.3175,
-    "post_ece": 0.1138,
-    "ece_reduction_pct": 64.15,
-    "admitted_win_rate": 0.9664,
-    "profit_factor": 1.95
+    "pre_brier": 0.3092,
+    "post_brier": 0.2462,
+    "pre_ece": 0.3123,
+    "post_ece": 0.1078,
+    "ece_reduction_pct": 65.48,
+    "admitted_win_rate": 0.9062,
+    "profit_factor": 1.79
   }
 }

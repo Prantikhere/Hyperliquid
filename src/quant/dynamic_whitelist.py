@@ -141,8 +141,11 @@ class DynamicWhitelist:
                 log.warning(f"[DYN_WHITELIST] No symbols scored — market_data had {len(market_data)} entries")
                 return None
             
-            # Only exclude permanently broken or unlisted feeds
-            EXCLUDED_SYMBOLS = {"NEAR/USDT", "FIL/USDT", "HBAR/USDT"}
+            # Only exclude permanently broken feeds or persistent loss drain tokens
+            EXCLUDED_SYMBOLS = {
+                "NEAR/USDT", "FIL/USDT", "HBAR/USDT",
+                "DYM/USDT", "PYTH/USDT", "S/USDT", "ALGO/USDT", "LIT/USDT", "ICP/USDT"
+            }
             for sym in list(scores.keys()):
                 if sym in EXCLUDED_SYMBOLS:
                     del scores[sym]

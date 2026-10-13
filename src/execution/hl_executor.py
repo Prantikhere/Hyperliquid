@@ -80,8 +80,11 @@ async def run_parallel():
         cycle = 0
 
         # Excluded toxic symbols — never write to Redis for trading consideration
-        EXCLUDED = {"NEAR/USDT", "FIL/USDT", "HBAR/USDT",
-                    "FARTCOIN/USDT", "JELLYJELLY/USDT", "JELLY/USDT", "USELESS/USDT"}
+        EXCLUDED = {
+            "NEAR/USDT", "FIL/USDT", "HBAR/USDT",
+            "FARTCOIN/USDT", "JELLYJELLY/USDT", "JELLY/USDT", "USELESS/USDT",
+            "DYM/USDT", "PYTH/USDT", "S/USDT", "ALGO/USDT", "LIT/USDT", "ICP/USDT"
+        }
 
         log.info("[UNIVERSE_FEED] Starting full-universe price feed (30s interval)...")
         while True:
