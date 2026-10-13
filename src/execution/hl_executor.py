@@ -104,11 +104,12 @@ async def run_parallel():
                         if price <= 0:
                             continue
                         symbol = f"{coin}/USDT"
+
+                        # Always write to Redis for real-time settlement of any open position
+                        pipe.set(f"price:hyperliquid:{symbol}", str(price), ex=120)
+
                         if symbol in EXCLUDED:
                             continue
-
-                        # Always write to Redis for real-time consumption
-                        pipe.set(f"price:hyperliquid:{symbol}", str(price), ex=120)
 
                         # Write to DB periodically for scoring history
                         if do_db_write:
