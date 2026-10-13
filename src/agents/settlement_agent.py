@@ -90,9 +90,23 @@ class SettlementAgent:
                     log.info(f"[SETTLEMENT] {symbol} on {exchange_id}: exit already submitted and pending on-chain reconciliation. Skipping.")
                     continue
 
-                # Get real-time price
+                # Get real-time price (Redis primary, with direct exchange SDK fallback)
                 current_price_str = self.redis.get(f"price:{exchange_id}:{symbol}") or self.redis.get(f"price:{symbol}")
                 if not current_price_str:
+                    # FALLBACK: If Redis feed missed or expired, fetch directly from exchange SDK so positions never orphan
+                    try:
+                        if exchange_id == "hyperliquid" and hasattr(self.execution_agent.multi_client, "hl_sdk") and self.execution_agent.multi_client.hl_sdk:
+                            coin = symbol.replace("/USDT", "")
+                            direct_px = self.execution_agent.multi_client.hl_sdk._get_oracle_px(coin)
+                            if direct_px > 0:
+                                current_price_str = str(direct_px)
+                                self.redis.set(f"price:{exchange_id}:{symbol}", current_price_str, ex=120)
+                                log.debug(f"[SETTLEMENT] Direct SDK price fallback resolved for {symbol}: {direct_px}")
+                    except Exception as fb_err:
+                        log.debug(f"[SETTLEMENT] Direct price fallback failed for {symbol}: {fb_err}")
+
+                if not current_price_str:
+                    log.warning(f"[SETTLEMENT] {symbol} on {exchange_id}: No live price available (Redis and direct fallback empty). Skipping cycle.")
                     continue
                 
                 current_price = float(current_price_str)
