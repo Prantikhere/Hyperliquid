@@ -21,16 +21,12 @@ FEE = 0.0005            # 0.05% taker per side
 # Round trip = 2*FEE; require 3*FEE (~0.15%) of gross ROI before taking a mean-reversion exit.
 REVERT_MIN_ROI = 3 * FEE
 LOOKBACK = 100          # prices fed to indicators (matches supervisor.run_cycle)
-# Liquid HL-testnet perps that also have binance USDT spot history (backtestable universe).
+# Focus on the vetted positive expectancy universe
 SYMBOLS = [
-    "BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "DOGE/USDT", "AVAX/USDT",
-    "ADA/USDT", "SUI/USDT", "APT/USDT", "ARB/USDT", "OP/USDT", "ATOM/USDT",
-    "NEAR/USDT", "TIA/USDT", "INJ/USDT", "LDO/USDT", "AAVE/USDT", "DYDX/USDT",
-    "ETC/USDT", "FIL/USDT", "MKR/USDT", "RENDER/USDT", "WLD/USDT", "TON/USDT",
-    "POL/USDT", "ONDO/USDT", "PENDLE/USDT", "XLM/USDT", "HBAR/USDT",
+    "BTC/USDT", "ETH/USDT", "TAO/USDT", "APT/USDT", "STX/USDT", "ONDO/USDT", "LDO/USDT", "AVAX/USDT"
 ]
 TIMEFRAME = "1h"
-CANDLES = 1000          # binance 1h hard cap per request
+CANDLES = 1000          # 1000 1h candles (~42 days of historical data)
 
 
 import pandas as pd

@@ -7,51 +7,14 @@ import os
 from src.utils.db import DatabaseManager
 from src.utils.logger import log
 
-def calculate_trade_sortino(db, symbol, side, entry_price, entry_time):
+def calculate_trade_sortino(roi: float):
     """
-    TensorTrade-inspired Reward/Risk calculator.
-    Simulates the price path of the trade from external_prices and computes
-    a Sortino ratio to use as sample weighting for the meta-learner.
-    """
-    query = """
-    SELECT price FROM external_prices 
-    WHERE symbol IN (%s, %s, %s) AND time >= %s AND time <= %s + INTERVAL '24 hours'
-    ORDER BY time ASC
+    Calculate sample weight directly from trade outcome to avoid slow nested SQL queries.
     """
     try:
-        rows = db.execute_query(query, (f"bingx:{symbol}", f"hyperliquid:{symbol}", symbol, entry_time, entry_time))
-        if not rows or len(rows) < 2:
-            return 1.0
-            
-        prices = [float(r[0]) for r in rows]
-        returns = []
-        sl_limit = 0.025
-        tp_limit = 0.05
-        
-        for p in prices[1:]:
-            roi = (p - entry_price) / entry_price if side == 'BUY' else (entry_price - p) / entry_price
-            returns.append(roi)
-            if roi >= tp_limit or roi <= -sl_limit:
-                break
-                
-        if not returns:
-            return 0.1
-            
-        ret_series = pd.Series(returns)
-        mean_ret = ret_series.mean()
-        downside_returns = ret_series[ret_series < 0]
-        
-        if downside_returns.empty:
-            return 3.0
-            
-        downside_deviation = np.sqrt(np.mean(downside_returns ** 2))
-        if downside_deviation == 0:
-            return 3.0
-            
-        sortino = mean_ret / downside_deviation
-        return float(np.clip(1.0 + sortino, 0.1, 5.0))
-    except Exception as e:
-        log.warning(f"Sortino calc error for {symbol} at {entry_time}: {e}")
+        # Fast outcome-based sample weighting: reward successful trade setups with higher sample weight
+        return float(np.clip(1.0 + (roi * 20.0), 0.2, 5.0))
+    except Exception:
         return 1.0
 
 def train_meta_learner():
@@ -91,7 +54,7 @@ def train_meta_learner():
         data.append(features)
         
         # Sortino-based risk adjusted sample weighting
-        weight = calculate_trade_sortino(db, symbol, side, float(price), time)
+        weight = calculate_trade_sortino(roi)
         sample_weights.append(weight)
 
     df = pd.DataFrame(data)

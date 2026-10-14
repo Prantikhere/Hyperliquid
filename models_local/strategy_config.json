@@ -1,62 +1,37 @@
 {
-  "trading_mode": "aggressive_scalp",
+  "trading_mode": "asymmetric_growth",
   "scalp_mode": true,
   "scalp_config": {
     "enabled": true,
-    "tp_target_pct": 0.022,
-    "sl_target_pct": -0.009,
-    "breakeven_trigger_pct": 0.0085,
+    "tp_target_pct": 0.035,
+    "sl_target_pct": -0.010,
+    "breakeven_trigger_pct": 0.015,
     "breakeven_lock_pct": 0.0035,
-    "trailing_trigger_pct": 0.012,
+    "trailing_trigger_pct": 0.020,
     "trailing_drop_ratio": 0.20,
-    "max_hold_hours": 2.5,
-    "min_confidence": 0.58
+    "max_hold_hours": 4.0,
+    "min_confidence": 0.60
   },
   "buy_threshold": 0.62,
   "sell_threshold": 0.38,
-  "min_confidence": 0.58,
+  "min_confidence": 0.60,
   "live_safe": true,
-  "use_dynamic_whitelist": true,
-  "dynamic_whitelist_top_n": 30,
-  "dynamic_whitelist_update_hours": 1,
+  "use_dynamic_whitelist": false,
   "symbol_whitelist": [
     "BTC/USDT",
     "ETH/USDT",
-    "SOL/USDT",
-    "DOGE/USDT",
-    "AVAX/USDT",
-    "BNB/USDT",
-    "SUI/USDT",
-    "ADA/USDT",
-    "ARB/USDT",
-    "OP/USDT",
-    "ZRO/USDT",
-    "WLD/USDT",
-    "XLM/USDT",
-    "XMR/USDT",
-    "ONDO/USDT",
     "TAO/USDT",
     "APT/USDT",
-    "LINK/USDT",
-    "AAVE/USDT",
-    "RENDER/USDT",
-    "INJ/USDT",
-    "TIA/USDT",
-    "PENDLE/USDT",
-    "PAXG/USDT",
-    "GRASS/USDT",
-    "ACE/USDT",
     "STX/USDT",
-    "POL/USDT",
-    "DOT/USDT",
-    "AZTEC/USDT"
+    "ONDO/USDT",
+    "AVAX/USDT"
   ],
   "_backtest": {
     "buy_threshold": 0.55,
     "sell_threshold": 0.45,
-    "avg_sharpe": 1.768,
-    "avg_return_pct": 0.0,
-    "total_trades": 52,
+    "avg_sharpe": -1.282,
+    "avg_return_pct": -0.6,
+    "total_trades": 18,
     "beats_hold": false,
     "per_symbol": {
       "BTC/USDT": {
@@ -66,264 +41,71 @@
         "sortino": 0.0,
         "win_rate": 0.0,
         "max_dd_pct": 0.0,
-        "vs_hold_pct": -0.1
+        "vs_hold_pct": -4.5
       },
       "ETH/USDT": {
-        "trades": 3,
-        "return_pct": -11.508772115994248,
-        "sharpe": -2.034,
-        "sortino": -1.081,
-        "win_rate": 33.3,
-        "max_dd_pct": -12.2,
-        "vs_hold_pct": -10.7
-      },
-      "SOL/USDT": {
-        "trades": 5,
-        "return_pct": -0.7296885772139716,
-        "sharpe": 0.018,
-        "sortino": 0.018,
-        "win_rate": 60.0,
-        "max_dd_pct": -11.9,
-        "vs_hold_pct": -9.8
-      },
-      "BNB/USDT": {
-        "trades": 0,
-        "return_pct": 0.0,
-        "sharpe": 0.0,
-        "sortino": 0.0,
+        "trades": 2,
+        "return_pct": -12.870494553897338,
+        "sharpe": -8.163,
+        "sortino": -1.393,
         "win_rate": 0.0,
-        "max_dd_pct": 0.0,
-        "vs_hold_pct": 6.8
+        "max_dd_pct": -12.9,
+        "vs_hold_pct": -13.3
       },
-      "DOGE/USDT": {
+      "TAO/USDT": {
         "trades": 3,
-        "return_pct": -3.7151071510087563,
-        "sharpe": -0.745,
-        "sortino": -0.408,
-        "win_rate": 66.7,
-        "max_dd_pct": -5.2,
-        "vs_hold_pct": 14.5
+        "return_pct": -9.150315381274465,
+        "sharpe": -1.656,
+        "sortino": -0.996,
+        "win_rate": 33.3,
+        "max_dd_pct": -10.5,
+        "vs_hold_pct": -13.6
+      },
+      "APT/USDT": {
+        "trades": 3,
+        "return_pct": -0.19419515919096852,
+        "sharpe": 0.059,
+        "sortino": 0.087,
+        "win_rate": 33.3,
+        "max_dd_pct": -6.4,
+        "vs_hold_pct": -33.9
+      },
+      "STX/USDT": {
+        "trades": 2,
+        "return_pct": 12.855730864644066,
+        "sharpe": 1.797,
+        "sortino": 89818101.727,
+        "win_rate": 100.0,
+        "max_dd_pct": 0.0,
+        "vs_hold_pct": -50.9
+      },
+      "ONDO/USDT": {
+        "trades": 3,
+        "return_pct": -20.69655899070423,
+        "sharpe": -4.223,
+        "sortino": -1.603,
+        "win_rate": 0.0,
+        "max_dd_pct": -20.7,
+        "vs_hold_pct": -43.7
+      },
+      "LDO/USDT": {
+        "trades": 1,
+        "return_pct": -6.126137463697978,
+        "sharpe": 0.0,
+        "sortino": -1.0,
+        "win_rate": 0.0,
+        "max_dd_pct": -6.1,
+        "vs_hold_pct": -8.1
       },
       "AVAX/USDT": {
         "trades": 4,
-        "return_pct": -5.107489466152493,
-        "sharpe": -0.934,
-        "sortino": -0.425,
+        "return_pct": 31.184296167630677,
+        "sharpe": 1.926,
+        "sortino": 2.512,
         "win_rate": 75.0,
-        "max_dd_pct": -6.0,
-        "vs_hold_pct": 11.4
-      },
-      "ADA/USDT": {
-        "trades": 7,
-        "return_pct": 30.763706200500973,
-        "sharpe": 1.408,
-        "sortino": 1.746,
-        "win_rate": 71.4,
-        "max_dd_pct": -6.5,
-        "vs_hold_pct": 47.3
-      },
-      "SUI/USDT": {
-        "trades": 2,
-        "return_pct": 2.143249543203507,
-        "sharpe": 3.427,
-        "sortino": 15088277.349,
-        "win_rate": 100.0,
-        "max_dd_pct": 0.0,
-        "vs_hold_pct": 12.3
-      },
-      "APT/USDT": {
-        "trades": 1,
-        "return_pct": -5.23643659711076,
-        "sharpe": 0.0,
-        "sortino": -1.0,
-        "win_rate": 0.0,
-        "max_dd_pct": -5.2,
-        "vs_hold_pct": 16.8
-      },
-      "ARB/USDT": {
-        "trades": 2,
-        "return_pct": 3.3514268834751615,
-        "sharpe": 1.726,
-        "sortino": 23633215.516,
-        "win_rate": 100.0,
-        "max_dd_pct": 0.0,
-        "vs_hold_pct": 3.8
-      },
-      "OP/USDT": {
-        "trades": 2,
-        "return_pct": 3.789024355918724,
-        "sharpe": 31.983,
-        "sortino": 26543830.348,
-        "win_rate": 100.0,
-        "max_dd_pct": 0.0,
-        "vs_hold_pct": 18.9
-      },
-      "ATOM/USDT": {
-        "trades": 0,
-        "return_pct": 0.0,
-        "sharpe": 0.0,
-        "sortino": 0.0,
-        "win_rate": 0.0,
-        "max_dd_pct": 0.0,
-        "vs_hold_pct": 14.0
-      },
-      "NEAR/USDT": {
-        "trades": 1,
-        "return_pct": -5.327817745803354,
-        "sharpe": 0.0,
-        "sortino": -1.0,
-        "win_rate": 0.0,
-        "max_dd_pct": -5.3,
-        "vs_hold_pct": 27.5
-      },
-      "TIA/USDT": {
-        "trades": 1,
-        "return_pct": -5.7948162569968265,
-        "sharpe": 0.0,
-        "sortino": -1.0,
-        "win_rate": 0.0,
         "max_dd_pct": -5.8,
-        "vs_hold_pct": -16.2
-      },
-      "INJ/USDT": {
-        "trades": 0,
-        "return_pct": 0.0,
-        "sharpe": 0.0,
-        "sortino": 0.0,
-        "win_rate": 0.0,
-        "max_dd_pct": 0.0,
-        "vs_hold_pct": 21.9
-      },
-      "LDO/USDT": {
-        "trades": 2,
-        "return_pct": 4.43222927328184,
-        "sharpe": 9.973,
-        "sortino": 31007499.771,
-        "win_rate": 100.0,
-        "max_dd_pct": 0.0,
-        "vs_hold_pct": 1.0
-      },
-      "AAVE/USDT": {
-        "trades": 2,
-        "return_pct": 11.905790764805978,
-        "sharpe": 1.536,
-        "sortino": 83808503.199,
-        "win_rate": 100.0,
-        "max_dd_pct": 0.0,
-        "vs_hold_pct": -18.7
-      },
-      "DYDX/USDT": {
-        "trades": 2,
-        "return_pct": -16.363318533619587,
-        "sharpe": -4.804,
-        "sortino": -1.357,
-        "win_rate": 0.0,
-        "max_dd_pct": -16.4,
-        "vs_hold_pct": 11.0
-      },
-      "ETC/USDT": {
-        "trades": 3,
-        "return_pct": 2.641012245526997,
-        "sharpe": 3.758,
-        "sortino": 15129485.452,
-        "win_rate": 100.0,
-        "max_dd_pct": 0.0,
-        "vs_hold_pct": 10.7
-      },
-      "FIL/USDT": {
-        "trades": 1,
-        "return_pct": 0.6682458386683798,
-        "sharpe": 0.0,
-        "sortino": 6682458.387,
-        "win_rate": 100.0,
-        "max_dd_pct": 0.0,
-        "vs_hold_pct": 15.3
-      },
-      "MKR/USDT": {
-        "trades": 4,
-        "return_pct": -2.2768888857695346,
-        "sharpe": -0.404,
-        "sortino": -0.21,
-        "win_rate": 75.0,
-        "max_dd_pct": -5.1,
-        "vs_hold_pct": 7.6
-      },
-      "RENDER/USDT": {
-        "trades": 0,
-        "return_pct": 0.0,
-        "sharpe": 0.0,
-        "sortino": 0.0,
-        "win_rate": 0.0,
-        "max_dd_pct": 0.0,
-        "vs_hold_pct": 26.8
-      },
-      "WLD/USDT": {
-        "trades": 1,
-        "return_pct": -5.958873841767643,
-        "sharpe": 0.0,
-        "sortino": -1.0,
-        "win_rate": 0.0,
-        "max_dd_pct": -6.0,
-        "vs_hold_pct": 20.8
-      },
-      "TON/USDT": {
-        "trades": 0,
-        "return_pct": 0.0,
-        "sharpe": 0.0,
-        "sortino": 0.0,
-        "win_rate": 0.0,
-        "max_dd_pct": 0.0,
-        "vs_hold_pct": 9.5
-      },
-      "POL/USDT": {
-        "trades": 0,
-        "return_pct": 0.0,
-        "sharpe": 0.0,
-        "sortino": 0.0,
-        "win_rate": 0.0,
-        "max_dd_pct": 0.0,
-        "vs_hold_pct": 14.2
-      },
-      "ONDO/USDT": {
-        "trades": 1,
-        "return_pct": 2.031837307152884,
-        "sharpe": 0.0,
-        "sortino": 20318373.072,
-        "win_rate": 100.0,
-        "max_dd_pct": 0.0,
-        "vs_hold_pct": 22.0
-      },
-      "PENDLE/USDT": {
-        "trades": 3,
-        "return_pct": 5.317957583106825,
-        "sharpe": 6.367,
-        "sortino": 30193620.23,
-        "win_rate": 100.0,
-        "max_dd_pct": 0.0,
-        "vs_hold_pct": -12.1
-      },
-      "XLM/USDT": {
-        "trades": 1,
-        "return_pct": -5.450248207391073,
-        "sharpe": 0.0,
-        "sortino": -1.0,
-        "win_rate": 0.0,
-        "max_dd_pct": -5.5,
-        "vs_hold_pct": 3.5
-      },
-      "HBAR/USDT": {
-        "trades": 1,
-        "return_pct": 1.1260257344015479,
-        "sharpe": 0.0,
-        "sortino": 11260257.344,
-        "win_rate": 100.0,
-        "max_dd_pct": 0.0,
-        "vs_hold_pct": 21.4
+        "vs_hold_pct": 0.7
       }
     }
-  },
-  "_tuned_at": "2026-10-10T19:11:34.359340",
-  "_tune_count": 17,
-  "_rolling_win_rate": 0.503,
-  "_rolling_sharpe": -0.1038
+  }
 }

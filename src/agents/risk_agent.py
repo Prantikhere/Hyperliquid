@@ -149,6 +149,14 @@ class RiskAgent:
             try:
                 from src.execution.hl_raw import HlSdkClient
                 hl_client = HlSdkClient()
+                
+                # Check total concurrent positions across account (hard cap at 3 to preserve capital)
+                all_hl_positions = hl_client.get_positions()
+                active_count = sum(1 for p in all_hl_positions if abs(float(p.get("position", p).get("szi", 0))) > 0)
+                if active_count >= 3:
+                    log.warning(f"[RISK_AGENT] Maximum concurrent position cap reached ({active_count}/3). Rejecting new trade.")
+                    return {"approved": False, "reason": f"Maximum concurrent positions reached ({active_count}/3)"}
+
                 coin = symbol.replace("/USDT", "")
                 pos = hl_client.get_position(coin)
                 if pos and float(pos.get("szi", 0)) != 0:
