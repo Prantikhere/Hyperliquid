@@ -10,11 +10,11 @@
     "trailing_trigger_pct": 0.012,
     "trailing_drop_ratio": 0.20,
     "max_hold_hours": 2.5,
-    "min_confidence": 0.55
+    "min_confidence": 0.58
   },
-  "buy_threshold": 0.58,
-  "sell_threshold": 0.42,
-  "min_confidence": 0.55,
+  "buy_threshold": 0.62,
+  "sell_threshold": 0.38,
+  "min_confidence": 0.58,
   "live_safe": true,
   "use_dynamic_whitelist": true,
   "dynamic_whitelist_top_n": 30,

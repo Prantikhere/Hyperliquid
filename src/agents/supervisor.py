@@ -322,11 +322,11 @@ class SupervisorAgent:
             det_action = "BUY"
         elif composite < sell_th and not uptrend and symbol_ok:
             det_action = "SELL"   # opens a SHORT in a downtrend -> hedge engages when trend is down
-        elif composite >= 0.58 and symbol_ok and ("MEAN_REVERTING" in regime.upper() or "NEUTRAL" in regime.upper()):
+        elif composite >= buy_th and symbol_ok and ("MEAN_REVERTING" in regime.upper() or "NEUTRAL" in regime.upper()):
             # Strong-signal override: composite is decisively bullish in MEAN_REVERTING/NEUTRAL regime.
             det_action = "BUY"
             log.debug(f"[ENTRY_DEBUG] {symbol}: Strong-signal BUY: composite={composite:.2f}, regime={regime}, symbol_ok={symbol_ok}")
-        elif composite <= 0.42 and symbol_ok and ("MEAN_REVERTING" in regime.upper() or "NEUTRAL" in regime.upper()):
+        elif composite <= sell_th and symbol_ok and ("MEAN_REVERTING" in regime.upper() or "NEUTRAL" in regime.upper()):
             # Strong-signal override: composite is decisively bearish in MEAN_REVERTING/NEUTRAL regime.
             det_action = "SELL"
             log.debug(f"[ENTRY_DEBUG] {symbol}: Strong-signal SELL: composite={composite:.2f}, regime={regime}, symbol_ok={symbol_ok}")
