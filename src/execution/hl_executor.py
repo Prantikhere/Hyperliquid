@@ -87,9 +87,11 @@ async def run_parallel():
         }
 
         log.info("[UNIVERSE_FEED] Starting full-universe price feed (30s interval)...")
+        client = None
         while True:
             try:
-                client = HlSdkClient()
+                if client is None:
+                    client = HlSdkClient()
                 mids = client.info.all_mids()
                 now = datetime.now(timezone.utc)
                 cycle += 1
@@ -129,6 +131,7 @@ async def run_parallel():
 
             except Exception as e:
                 log.warning(f"[UNIVERSE_FEED] Error: {e}")
+                client = None  # Re-initialize on error
 
             await asyncio.sleep(FEED_INTERVAL)
 
